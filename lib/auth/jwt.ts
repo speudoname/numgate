@@ -10,6 +10,7 @@ export interface JWTPayload {
   email: string
   role: string
   permissions: string[]
+  [key: string]: any // Add index signature for jose compatibility
 }
 
 // Convert string secret to Uint8Array for jose
