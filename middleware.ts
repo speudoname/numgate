@@ -1,0 +1,107 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { verifyToken } from '@/lib/auth/jwt'
+import { APP_ROUTES, getAppFromPath } from '@/lib/proxy-config'
+
+// Routes that don't require authentication
+const publicRoutes = ['/', '/login', '/register', '/forgot-password']
+
+// API routes that don't require authentication
+const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/test']
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Check if this is an app route that needs proxying
+  const app = getAppFromPath(pathname)
+  if (app) {
+    // Get token from cookie for authentication
+    const authCookie = request.cookies.get('auth-token')
+    const token = authCookie?.value
+    
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    
+    // Verify token
+    const payload = await verifyToken(token)
+    if (!payload) {
+      const response = NextResponse.redirect(new URL('/login', request.url))
+      response.cookies.delete('auth-token')
+      return response
+    }
+    
+    // Add headers for downstream app and rewrite cookies
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-tenant-id', payload.tenant_id)
+    requestHeaders.set('x-user-id', payload.user_id)
+    requestHeaders.set('x-user-email', payload.email)
+    requestHeaders.set('x-user-role', payload.role)
+    requestHeaders.set('x-auth-token', token)
+    
+    // Also set the Page Builder cookie format
+    requestHeaders.set('cookie', `pb-auth-token=${token}; ${request.headers.get('cookie') || ''}`)
+    
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  }
+
+  // Check if it's a public route
+  if (publicRoutes.includes(pathname) || publicApiRoutes.includes(pathname)) {
+    return NextResponse.next()
+  }
+
+  // Get token from cookie
+  const authCookie = request.cookies.get('auth-token')
+  const token = authCookie?.value
+  
+  // No token, redirect to login
+  if (!token) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Verify token
+  const payload = await verifyToken(token)
+  
+  if (!payload) {
+    // Invalid token, clear cookie and redirect
+    const response = pathname.startsWith('/api/')
+      ? NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      : NextResponse.redirect(new URL('/login', request.url))
+    
+    response.cookies.delete('auth-token')
+    return response
+  }
+
+  // Add user info to headers for API routes
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-tenant-id', payload.tenant_id)
+  requestHeaders.set('x-user-id', payload.user_id)
+  requestHeaders.set('x-user-email', payload.email)
+  requestHeaders.set('x-user-role', payload.role)
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (public folder)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\..*|public).*)',
+  ],
+}
