@@ -65,17 +65,8 @@ export default function DashboardPage() {
 
   const handleNavigateToApp = async (appName: string) => {
     if (appName === 'page_builder') {
-      // Get the auth token from cookies
-      const cookies = document.cookie.split(';');
-      const authCookie = cookies.find(c => c.trim().startsWith('auth-token='));
-      
-      if (authCookie) {
-        const token = authCookie.split('=')[1];
-        // Pass token in URL for cross-app authentication
-        window.location.href = `/page-builder?token=${encodeURIComponent(token)}&from=gateway`;
-      } else {
-        window.location.href = '/page-builder';
-      }
+      // Navigate to page builder - nginx will handle cookie/header passing securely
+      window.location.href = '/page-builder'
     }
   }
 
