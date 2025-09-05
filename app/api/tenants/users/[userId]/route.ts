@@ -5,9 +5,12 @@ import { verifyToken } from '@/lib/auth/jwt'
 // PATCH - Update user role
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
   try {
+    // Await params as it's now a Promise in Next.js 15
+    const params = await context.params
+    
     // Get auth token
     const token = request.cookies.get('auth-token')?.value
     if (!token) {
@@ -69,9 +72,12 @@ export async function PATCH(
 // DELETE - Remove user from tenant
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
   try {
+    // Await params as it's now a Promise in Next.js 15
+    const params = await context.params
+    
     // Get auth token
     const token = request.cookies.get('auth-token')?.value
     if (!token) {
