@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
     // Generate JWT token
     const token = await generateToken({
       tenant_id: tenant.id,
+      tenant_slug: tenant.slug, // Add tenant slug for super admin check
       user_id: user.id,
       email: user.email,
       role: user.role,

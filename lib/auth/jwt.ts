@@ -6,6 +6,7 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h'
 
 export interface JWTPayload {
   tenant_id: string
+  tenant_slug?: string // Add tenant slug for super admin check
   user_id: string
   email: string
   role: string

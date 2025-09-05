@@ -178,10 +178,11 @@ export async function middleware(request: NextRequest) {
     
     const payload = await verifyToken(token)
     
-    if (!payload || !payload.is_super_admin) {
-      // Not a super admin
+    // Check both: is_super_admin AND logged into komunate tenant
+    if (!payload || !payload.is_super_admin || payload.tenant_slug !== 'komunate') {
+      // Not a super admin or not on komunate tenant
       if (pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Forbidden - Super admin required' }, { status: 403 })
+        return NextResponse.json({ error: 'Forbidden - Super admin access requires komunate tenant' }, { status: 403 })
       }
       // Redirect to regular dashboard for page routes
       return NextResponse.redirect(new URL('/dashboard', request.url))
