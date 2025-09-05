@@ -31,14 +31,35 @@ export async function GET(
     const vercelStatus = await vercelDomains.getDomainStatus(domain.domain)
     
     if (!vercelStatus.success) {
+      // Check if domain doesn't exist in Vercel
+      const notFoundError = vercelStatus.error?.toLowerCase().includes('not found') || 
+                           vercelStatus.error?.toLowerCase().includes('domain not found')
+      
+      if (notFoundError) {
+        return NextResponse.json({ 
+          error: 'Domain not found in Vercel',
+          domainMissing: true,
+          domain: {
+            ...domain,
+            verified: false,
+            vercelStatus: 'missing'
+          },
+          message: 'This domain exists in your account but not in Vercel. Would you like to re-add it?',
+          dnsRecords: []
+        }, { status: 200 }) // Return 200 so frontend can handle it
+      }
+      
+      // Other errors - return as error without assuming any status
       return NextResponse.json({ 
         error: vercelStatus.error || 'Failed to get domain status',
         domain: {
           ...domain,
-          verified: false
+          verified: false,
+          vercelStatus: 'error'
         },
+        message: 'Unable to fetch domain status from Vercel',
         dnsRecords: []
-      }, { status: 500 })
+      }, { status: 200 }) // Return 200 so frontend can handle the error gracefully
     }
 
     // Update our database with current verification status

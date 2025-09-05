@@ -10,6 +10,7 @@ interface CustomDomain {
   verified: boolean
   ssl_status: string
   created_at: string
+  vercelStatus?: 'missing' | 'error' | 'active'
 }
 
 interface DNSRecord {
@@ -52,11 +53,17 @@ export default function DomainsPage() {
                 const statusData = await statusResponse.json()
                 return {
                   ...domain,
-                  verified: statusData.verified
+                  verified: statusData.verified || false,
+                  vercelStatus: statusData.domain?.vercelStatus || statusData.domainMissing ? 'missing' : 'active'
                 }
               }
             } catch (err) {
               console.error(`Error fetching status for ${domain.domain}:`, err)
+              return {
+                ...domain,
+                verified: false,
+                vercelStatus: 'error' as const
+              }
             }
             return domain
           })
@@ -264,7 +271,21 @@ export default function DomainsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <p className="font-bold text-lg">{domain.domain}</p>
-                        {domain.verified ? (
+                        {domain.vercelStatus === 'missing' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-red-900 bg-red-100 border-2 border-red-600 rounded-base">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            Missing in Vercel
+                          </span>
+                        ) : domain.vercelStatus === 'error' ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-gray-900 bg-gray-100 border-2 border-gray-600 rounded-base">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Status Unknown
+                          </span>
+                        ) : domain.verified ? (
                           <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-green-900 bg-green-100 border-2 border-green-600 rounded-base">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -303,20 +324,62 @@ export default function DomainsPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {!domain.verified && (
+                      {domain.vercelStatus === 'missing' ? (
+                        <button
+                          onClick={async () => {
+                            setLoading(true)
+                            try {
+                              // Re-add domain to Vercel
+                              const response = await fetch('/api/domains', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ domain: domain.domain })
+                              })
+                              const data = await response.json()
+                              if (response.ok) {
+                                setSuccess('Domain re-added to Vercel. Please configure DNS.')
+                                setDnsRecords(data.dnsRecords || [])
+                                setSelectedDomain(domain)
+                                setShowInstructions(true)
+                                fetchDomains()
+                              } else {
+                                setError(data.error || 'Failed to re-add domain')
+                              }
+                            } catch (err) {
+                              setError('Failed to re-add domain to Vercel')
+                            } finally {
+                              setLoading(false)
+                            }
+                          }}
+                          className="px-4 py-2 font-bold bg-red-500 text-white border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                        >
+                          Re-add to Vercel
+                        </button>
+                      ) : !domain.verified && (
                         <>
                           <button
                             onClick={async () => {
+                              setError('')
+                              setSuccess('')
                               try {
                                 const response = await fetch(`/api/domains/${domain.id}/status`)
                                 if (response.ok) {
                                   const data = await response.json()
-                                  setSelectedDomain(data.domain)
-                                  setDnsRecords(data.dnsRecords || [])
-                                  setShowInstructions(true)
+                                  if (data.domainMissing) {
+                                    setError(data.message || 'Domain not found in Vercel')
+                                    // Update local state to show missing status
+                                    setDomains(prev => prev.map(d => 
+                                      d.id === domain.id ? { ...d, vercelStatus: 'missing' } : d
+                                    ))
+                                  } else {
+                                    setSelectedDomain(data.domain)
+                                    setDnsRecords(data.dnsRecords || [])
+                                    setShowInstructions(true)
+                                  }
                                 }
                               } catch (err) {
                                 console.error('Error fetching domain details:', err)
+                                setError('Failed to fetch domain details')
                               }
                             }}
                             className="px-4 py-2 font-bold bg-secondary-background border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
