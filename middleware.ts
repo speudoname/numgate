@@ -31,7 +31,8 @@ export async function middleware(request: NextRequest) {
       requestHeaders.set('x-tenant-domain', hostname || '')
       requestHeaders.set('x-tenant-id', tenant.id)
       requestHeaders.set('x-tenant-slug', tenant.slug)
-      requestHeaders.set('x-tenant-name', tenant.name)
+      // Encode tenant name to handle non-ASCII characters (like Georgian)
+      requestHeaders.set('x-tenant-name', encodeURIComponent(tenant.name))
     } else {
       // Unknown domain - show error page
       requestHeaders.set('x-unknown-domain', 'true')

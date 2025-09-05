@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { TenantPagesService } from '@/lib/blob/tenant-pages'
+import { supabaseAdmin } from '@/lib/supabase/server'
+
+/**
+ * Get the tenant ID for komunate.com platform
+ */
+async function getKomunateTenantId(): Promise<string | null> {
+  const { data: tenant } = await supabaseAdmin
+    .from('tenants')
+    .select('id')
+    .eq('slug', 'komunate')
+    .single()
+  
+  return tenant?.id || null
+}
 
 /**
  * Catch-all route to serve tenant pages from Blob storage
@@ -16,12 +30,53 @@ export async function GET(
     
     // Get tenant info from headers (set by middleware)
     const tenantId = request.headers.get('x-tenant-id')
+    const tenantSlug = request.headers.get('x-tenant-slug')
     const isPlatform = request.headers.get('x-platform-mode') === 'true'
     
-    // Skip if on platform domain or no tenant found
-    if (isPlatform || !tenantId) {
-      // Let Next.js handle the route normally
-      return new Response(null, { status: 404 })
+    // For platform mode, check if it's a system route
+    if (isPlatform) {
+      const path = params.slug?.join('/') || ''
+      
+      // These routes have their own handlers
+      const systemRoutes = ['api', '_next', 'dashboard', 'login', 'register', 'admin', 'page-builder']
+      const isSystemRoute = systemRoutes.some(route => 
+        path.startsWith(route) || path === route
+      )
+      
+      if (isSystemRoute) {
+        // Let Next.js handle system routes
+        return new Response(null, { status: 404 })
+      }
+      
+      // For platform domain root or other pages, serve from komunate tenant blob
+      // komunate.com itself is a tenant!
+      const komunateTenant = await getKomunateTenantId()
+      if (komunateTenant) {
+        const pagePath = path || 'index.html'
+        const pageResponse = await TenantPagesService.getPage(
+          komunateTenant,
+          pagePath.includes('.') ? pagePath : `${pagePath}.html`
+        )
+        
+        if (pageResponse) {
+          const content = await pageResponse.text()
+          return new NextResponse(content, {
+            status: 200,
+            headers: {
+              'Content-Type': pageResponse.headers.get('content-type') || 'text/html',
+              'Cache-Control': 'public, max-age=60',
+            },
+          })
+        }
+      }
+      
+      // Platform page not found - return 404
+      return new Response('Page not found', { status: 404 })
+    }
+    
+    // Tenant mode - must have tenant ID
+    if (!tenantId) {
+      return new Response('Tenant not found', { status: 404 })
     }
     
     // Determine which page to serve
