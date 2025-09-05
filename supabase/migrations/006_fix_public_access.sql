@@ -18,50 +18,16 @@ CREATE POLICY "Public and users can read tenants" ON tenants
 -- 2. Fix custom_domains public lookup
 -- ============================================
 
--- Drop old restrictive policy
+-- Drop the old restrictive SELECT policy only
 DROP POLICY IF EXISTS "View tenant domains" ON custom_domains;
 
--- Allow public read of domains for verification
+-- Create new public read policy for domain verification
 CREATE POLICY "Public can read domains for verification" ON custom_domains
   FOR SELECT
   USING (true);  -- Public can check if domain exists
 
--- Only admins can insert new domains
-CREATE POLICY "Admins can insert domains" ON custom_domains
-  FOR INSERT
-  WITH CHECK (
-    public.user_has_tenant_access(tenant_id) AND
-    EXISTS (
-      SELECT 1 FROM tenant_users
-      WHERE tenant_users.tenant_id = custom_domains.tenant_id
-      AND tenant_users.user_id = public.get_auth_user_id()
-      AND tenant_users.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admins update domains" ON custom_domains
-  FOR UPDATE
-  USING (
-    public.user_has_tenant_access(tenant_id) AND
-    EXISTS (
-      SELECT 1 FROM tenant_users
-      WHERE tenant_users.tenant_id = custom_domains.tenant_id
-      AND tenant_users.user_id = public.get_auth_user_id()
-      AND tenant_users.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admins delete domains" ON custom_domains
-  FOR DELETE
-  USING (
-    public.user_has_tenant_access(tenant_id) AND
-    EXISTS (
-      SELECT 1 FROM tenant_users
-      WHERE tenant_users.tenant_id = custom_domains.tenant_id
-      AND tenant_users.user_id = public.get_auth_user_id()
-      AND tenant_users.role = 'admin'
-    )
-  );
+-- Note: INSERT, UPDATE, DELETE policies already exist from migration 005
+-- We only needed to fix the SELECT policy to allow public reads
 
 -- Note: We're keeping some public read access because:
 -- 1. Subdomain resolution needs to work without auth
