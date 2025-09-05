@@ -52,7 +52,7 @@ export default function DashboardPage() {
       setData(tenantData)
     } catch (err) {
       setError('Failed to load dashboard')
-      console.error(err)
+      // Error handled in UI
     } finally {
       setLoading(false)
     }

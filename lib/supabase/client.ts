@@ -16,6 +16,25 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
  * @returns Supabase client with user context for RLS
  */
 export function createServerClient(request?: NextRequest) {
+  // Prepare headers for RLS
+  const headers: Record<string, string> = {}
+  
+  if (request) {
+    const tenantId = request.headers.get('x-tenant-id')
+    const userId = request.headers.get('x-user-id')
+    const userRole = request.headers.get('x-user-role')
+    
+    // Create a JSON object for PostgreSQL to parse
+    const requestHeaders = {
+      'x-tenant-id': tenantId || '',
+      'x-user-id': userId || '',
+      'x-user-role': userRole || ''
+    }
+    
+    // Pass as a custom header that PostgreSQL can read
+    headers['x-custom-jwt-claims'] = JSON.stringify(requestHeaders)
+  }
+  
   const client = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,27 +44,13 @@ export function createServerClient(request?: NextRequest) {
         persistSession: false
       },
       global: {
-        headers: request ? {
-          // Pass JWT claims for RLS policies
-          'x-tenant-id': request.headers.get('x-tenant-id') || '',
-          'x-user-id': request.headers.get('x-user-id') || '',
-          'x-user-role': request.headers.get('x-user-role') || ''
-        } : {}
+        headers
+      },
+      db: {
+        schema: 'public'
       }
     }
   )
-  
-  // Set JWT claims for RLS if available
-  if (request) {
-    const tenantId = request.headers.get('x-tenant-id')
-    const userId = request.headers.get('x-user-id')
-    const userRole = request.headers.get('x-user-role')
-    
-    // These will be available in RLS policies via current_setting()
-    if (tenantId) client.rpc('set_config', { key: 'request.jwt.tenant_id', value: tenantId })
-    if (userId) client.rpc('set_config', { key: 'request.jwt.user_id', value: userId })
-    if (userRole) client.rpc('set_config', { key: 'request.jwt.user_role', value: userRole })
-  }
   
   return client
 }

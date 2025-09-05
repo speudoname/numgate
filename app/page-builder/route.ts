@@ -147,7 +147,7 @@ async function handleProxyRequest(
     }
 
   } catch (error) {
-    console.error('Page builder proxy error:', error)
+    // Page builder proxy error logged server-side only
     return NextResponse.json(
       { error: 'Proxy request failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

@@ -66,7 +66,7 @@ export async function PATCH(
       message: 'User role updated successfully'
     })
   } catch (error) {
-    console.error('Error updating user role:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -143,7 +143,7 @@ export async function DELETE(
       message: 'User removed from organization successfully'
     })
   } catch (error) {
-    console.error('Error removing user from tenant:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

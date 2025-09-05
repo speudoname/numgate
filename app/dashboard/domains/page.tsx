@@ -61,7 +61,7 @@ export default function DomainsPage() {
                 }
               }
             } catch (err) {
-              console.error(`Error fetching status for ${domain.domain}:`, err)
+              // Error fetching domain status - setting default values
               return {
                 ...domain,
                 verified: false,
@@ -75,7 +75,7 @@ export default function DomainsPage() {
         setDomains(updatedDomains)
       }
     } catch (err) {
-      console.error('Error fetching domains:', err)
+      // Error fetching domains - will show empty state
     } finally {
       setLoadingDomains(false)
     }
@@ -437,7 +437,7 @@ export default function DomainsPage() {
                                   }
                                 }
                               } catch (err) {
-                                console.error('Error fetching domain details:', err)
+                                // Error fetching domain details
                                 setError('Failed to fetch domain details')
                               }
                             }}
@@ -494,7 +494,7 @@ export default function DomainsPage() {
                                 }, 100)
                               }
                             } catch (err) {
-                              console.error('Error fetching domain details:', err)
+                              // Error fetching domain details
                               setError('Failed to fetch domain details')
                             }
                           }}

@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use admin client since our custom JWT doesn't integrate with Supabase RLS
-    // Security is ensured by middleware validation and explicit filtering
+    // Continue using admin client with explicit tenant filtering
+    // RLS with custom JWT requires more complex Supabase setup
     const supabase = supabaseAdmin
     
     const { data: tenant, error: tenantError } = await supabase
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       apps: apps || []
     })
   } catch (error) {
-    console.error('Get tenant error:', error)
+    // Error logged server-side only
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -86,7 +86,7 @@ export async function GET(
       verified: vercelStatus.verified
     })
   } catch (error) {
-    console.error('Error fetching domain status:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

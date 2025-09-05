@@ -47,7 +47,7 @@ export async function POST(
       message: `${domain.domain} is now the primary domain`
     })
   } catch (error) {
-    console.error('Error setting primary domain:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

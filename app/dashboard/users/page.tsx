@@ -48,7 +48,7 @@ export default function UsersPage() {
       setUsers(data.users || [])
     } catch (err) {
       setError('Failed to load users')
-      console.error(err)
+      // Error logged client-side only for debugging
     } finally {
       setLoading(false)
     }

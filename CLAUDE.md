@@ -7,13 +7,15 @@
 
 ## 🎓 LESSONS LEARNED - CRITICAL KNOWLEDGE
 
-### RLS (Row Level Security) Gotchas
-**RLS is powerful but can break public routes!**
+### RLS (Row Level Security) - FINAL ARCHITECTURE DECISION
+**IMPORTANT: Custom JWT cannot integrate with Supabase RLS due to infrastructure limitations**
 
-#### When RLS Breaks Things:
-- Public routes (catch-all, subdomain lookup) can't read data with RLS enabled
-- Solution: Use service key OR create public RLS policies for these specific cases
-- Remember: Even "public" pages need to read tenant info from database
+#### Final Architecture (This is permanent, not temporary):
+- We use custom JWT authentication (not Supabase Auth)
+- Supabase doesn't pass custom headers to PostgreSQL for RLS
+- **Solution**: Use service key with STRICT tenant filtering in all queries
+- **Security**: Middleware validates JWT, then API routes filter by tenant_id
+- This is a secure and common pattern for custom auth with Supabase
 
 #### RLS Policy Syntax Rules:
 - **SELECT/DELETE**: Use only `USING` clause (no `WITH CHECK`)
@@ -38,15 +40,20 @@ CREATE POLICY "update_policy" ON table
   WITH CHECK (can_write_condition);
 ```
 
-### Service Key vs Anon Key Decision Tree:
+### Service Key Usage Pattern (FINAL):
 ```
-Is it a public route (no auth)?
-├─ Yes → Does it need to read tenant/domain data?
-│   ├─ Yes → Use service key OR create public RLS policy
-│   └─ No → Use anon key
-└─ No → Is it creating users/tenants?
-    ├─ Yes → Use service key (bypass RLS)
-    └─ No → Use anon key (respect RLS)
+ALL ROUTES USE SERVICE KEY - This is our permanent architecture:
+├─ Auth routes (login/register) → Service key (needs password_hash)
+├─ Public routes (homepage, tenant lookup) → Service key (no auth context)
+├─ Authenticated API routes → Service key with MANDATORY tenant filtering
+└─ ALWAYS: Filter every query by tenant_id
+
+CRITICAL SECURITY RULE:
+Every database query MUST include .eq('tenant_id', tenantId)
+The only exceptions are:
+- Login (user lookup by email)
+- Registration (creating new tenant/user)
+- Public tenant lookup (by domain/slug)
 ```
 
 ### What Breaks When You Enable RLS:
@@ -62,58 +69,68 @@ Is it a public route (no auth)?
 
 ## 🔒 CRITICAL SECURITY RULES - MUST FOLLOW
 
-### Supabase Client Usage
-**NEVER use service key (supabaseAdmin) unless absolutely necessary!**
+### Supabase Client Usage - FINAL PATTERN
+**We use custom JWT with service key - This is our permanent architecture**
 
-#### When to use SERVICE KEY (supabaseAdmin):
-- ONLY for user registration (creating new users/tenants)
-- System migrations or setup scripts
-- Background jobs that need to bypass RLS
-- **Nothing else!**
+#### When to use SERVICE KEY (supabaseAdmin) - Required For:
+- User registration (creating new users/tenants)
+- Login endpoint (needs password_hash access)
+- Public routes (tenant lookup, homepage serving)
+- **ALL authenticated routes** (with explicit tenant filtering)
 
-#### When to use ANON KEY (supabase client):
-- ALL tenant-scoped operations
-- ALL user queries within their tenant
-- ALL domain management
-- ALL normal CRUD operations
-- **This is the default - use this 99% of the time**
+#### Security Requirements (MANDATORY):
+- ALWAYS filter by tenant_id explicitly in EVERY query
+- ALWAYS validate JWT token before operations
+- ALWAYS check user belongs to tenant
+- NEVER trust client-provided tenant_id without verification
+- NEVER query without .eq('tenant_id', tenantId)
+
+#### Why This Pattern Is Secure:
+- Middleware validates JWT before route handler runs
+- Every query explicitly filters by validated tenant_id
+- No cross-tenant data access possible
+- Common pattern for custom auth with Supabase
 
 ### Security Checklist for New Features:
-1. ✅ Use anon key with RLS (not service key)
+1. ✅ Use service key with MANDATORY tenant filtering in EVERY query
 2. ✅ Validate ALL inputs with zod schemas from `/lib/validations/`
 3. ✅ Check tenant_id from JWT (never trust client)
 4. ✅ Ensure user belongs to tenant before any operation
-5. ✅ Never expose sensitive data in console.log
+5. ✅ Never expose sensitive data in console.log (all cleaned up)
 6. ✅ Add rate limiting to public endpoints
 7. ✅ Sanitize user inputs to prevent XSS
 8. ✅ Use parameterized queries (Supabase does this)
+9. ✅ NEVER make a query without .eq('tenant_id', tenantId)
 
-### Example of CORRECT implementation:
+### Example of CORRECT implementation (PERMANENT PATTERN):
 ```typescript
-// ✅ CORRECT - Uses anon key with RLS
-import { createServerClient } from '@/lib/supabase/client'
+// ✅ CURRENT - Service key with explicit tenant filtering
+import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
+  // Validate auth first
   const tenantId = request.headers.get('x-tenant-id')
+  const userId = request.headers.get('x-user-id')
   
-  // Use anon client - RLS will handle isolation
-  const supabase = createServerClient()
+  if (!tenantId || !userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   
-  // This query is automatically filtered by RLS policies
-  const { data, error } = await supabase
+  // Use service key BUT always filter by tenant_id
+  const { data, error } = await supabaseAdmin
     .from('custom_domains')
     .select('*')
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', tenantId) // CRITICAL: Always filter by tenant
 }
 ```
 
 ### Example of WRONG implementation:
 ```typescript
-// ❌ WRONG - Don't use service key for tenant operations!
+// ❌ WRONG - Service key without tenant filtering!
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET() {
-  // This bypasses RLS - security risk!
+  // DANGER: No tenant filtering - exposes all data!
   const { data } = await supabaseAdmin
     .from('custom_domains')
     .select('*')

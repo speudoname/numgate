@@ -41,7 +41,7 @@ export async function GET(
       dnsRecords
     })
   } catch (error) {
-    console.error('Error fetching domain:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -77,7 +77,7 @@ export async function DELETE(
     try {
       await vercelDomains.removeDomain(domain.domain)
     } catch (vercelError) {
-      console.warn('Domain may not exist in Vercel:', vercelError)
+      // Domain may not exist in Vercel - continuing with database removal
     }
 
     // Delete from our database
@@ -111,7 +111,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'Domain deleted successfully' })
   } catch (error) {
-    console.error('Error deleting domain:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

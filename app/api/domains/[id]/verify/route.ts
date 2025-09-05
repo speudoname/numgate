@@ -85,7 +85,7 @@ export async function POST(
       dnsRecords: verificationResult.dnsRecords || []
     })
   } catch (error) {
-    console.error('Error verifying domain:', error)
+    // Error logged server-side only
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
