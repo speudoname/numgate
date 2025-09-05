@@ -33,6 +33,14 @@ export async function GET(
     const tenantSlug = request.headers.get('x-tenant-slug')
     const isPlatform = request.headers.get('x-platform-mode') === 'true'
     
+    console.log('🔍 Catch-all route debug:', {
+      url: request.url,
+      tenantId,
+      tenantSlug,
+      isPlatform,
+      headers: Object.fromEntries(request.headers.entries())
+    })
+    
     // For platform mode, check if it's a system route
     if (isPlatform) {
       const path = params.slug?.join('/') || ''

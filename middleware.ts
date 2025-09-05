@@ -97,7 +97,11 @@ export async function middleware(request: NextRequest) {
     }
     
     // Even if no auth, let proxy handle it (it will return appropriate errors)
-    return NextResponse.next()
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
   }
 
   // Check if this is an app route that needs proxying (for direct access, not through proxy)
@@ -137,9 +141,13 @@ export async function middleware(request: NextRequest) {
     })
   }
 
-  // Check if it's a public route
+  // Check if it's a public route - still pass tenant/platform headers
   if (publicRoutes.includes(pathname) || publicApiRoutes.includes(pathname)) {
-    return NextResponse.next()
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
   }
 
   // Get token from cookie
