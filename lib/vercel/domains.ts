@@ -162,10 +162,8 @@ class VercelDomainsService {
         ? await configResponse.json() 
         : { misconfigured: true }
 
-      // Extract DNS records including verification if not verified
-      const dnsRecords = !domainData.verified 
-        ? this.extractDNSRecords(domain, domainData)
-        : undefined
+      // Always extract DNS records so users can view them
+      const dnsRecords = this.extractDNSRecords(domain, domainData)
 
       return {
         success: true,

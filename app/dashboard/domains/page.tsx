@@ -235,10 +235,12 @@ export default function DomainsPage() {
         </div>
 
         {/* DNS Instructions */}
-        {showInstructions && dnsRecords.length > 0 && (
+        {showInstructions && (
           <div className="dns-instructions bg-background rounded-base border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-8">
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold">DNS Configuration Required</h2>
+              <h2 className="text-2xl font-bold">
+                {selectedDomain?.verified ? 'DNS Configuration' : 'DNS Configuration Required'}
+              </h2>
               <button
                 onClick={() => setShowInstructions(false)}
                 className="text-2xl font-bold hover:opacity-70 transition-opacity"
@@ -246,10 +248,21 @@ export default function DomainsPage() {
                 ✕
               </button>
             </div>
-            <DNSInstructions 
-              domain={selectedDomain?.domain || newDomain}
-              dnsRecords={dnsRecords}
-            />
+            {dnsRecords.length > 0 ? (
+              <DNSInstructions 
+                domain={selectedDomain?.domain || newDomain}
+                dnsRecords={dnsRecords}
+              />
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-lg font-medium mb-2">DNS Records</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedDomain?.verified 
+                    ? 'This domain is already verified and configured properly.' 
+                    : 'No DNS records available. Try verifying the domain to get the latest status.'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -390,7 +403,7 @@ export default function DomainsPage() {
                             Delete
                           </button>
                         </>
-                      ) : !domain.verified && (
+                      ) : (
                         <>
                           <button
                             onClick={async () => {
@@ -434,6 +447,33 @@ export default function DomainsPage() {
                             {verifying === domain.id ? 'Checking...' : 'Verify'}
                           </button>
                         </>
+                      )}
+                      {domain.verified && (
+                        <button
+                          onClick={async () => {
+                            setError('')
+                            setSuccess('')
+                            try {
+                              const response = await fetch(`/api/domains/${domain.id}/status`)
+                              if (response.ok) {
+                                const data = await response.json()
+                                setSelectedDomain(data.domain || domain)
+                                setDnsRecords(data.dnsRecords || [])
+                                setShowInstructions(true)
+                                // Scroll to instructions
+                                setTimeout(() => {
+                                  document.querySelector('.dns-instructions')?.scrollIntoView({ behavior: 'smooth' })
+                                }, 100)
+                              }
+                            } catch (err) {
+                              console.error('Error fetching domain details:', err)
+                              setError('Failed to fetch domain details')
+                            }
+                          }}
+                          className="px-4 py-2 font-bold bg-secondary-background border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                        >
+                          View DNS
+                        </button>
                       )}
                     </div>
                   </div>
