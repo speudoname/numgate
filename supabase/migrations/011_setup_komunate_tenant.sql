@@ -76,16 +76,14 @@ BEGIN
     verified,
     is_primary,
     verification_token,
-    dns_configured,
-    ssl_configured
+    ssl_status
   ) VALUES (
     v_komunate_tenant_id,
     'komunate.com',
     true,
     true,
     'verified-platform-domain',
-    true,
-    true
+    'active'
   );
 
   RAISE NOTICE '✅ Added komunate.com as verified primary domain';
@@ -97,16 +95,14 @@ BEGIN
     verified,
     is_primary,
     verification_token,
-    dns_configured,
-    ssl_configured
+    ssl_status
   ) VALUES (
     v_komunate_tenant_id,
     'www.komunate.com',
     true,
     false,
     'verified-platform-domain',
-    true,
-    true
+    'active'
   );
 
   RAISE NOTICE '✅ Added www.komunate.com as verified domain';
