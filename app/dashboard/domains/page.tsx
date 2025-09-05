@@ -26,6 +26,7 @@ export default function DomainsPage() {
   const [domains, setDomains] = useState<CustomDomain[]>([])
   const [newDomain, setNewDomain] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingDomains, setLoadingDomains] = useState(true)
   const [verifying, setVerifying] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -38,6 +39,7 @@ export default function DomainsPage() {
   }, [])
 
   const fetchDomains = async () => {
+    setLoadingDomains(true)
     try {
       const response = await fetch('/api/domains')
       if (response.ok) {
@@ -73,6 +75,8 @@ export default function DomainsPage() {
       }
     } catch (err) {
       console.error('Error fetching domains:', err)
+    } finally {
+      setLoadingDomains(false)
     }
   }
 
@@ -232,7 +236,7 @@ export default function DomainsPage() {
 
         {/* DNS Instructions */}
         {showInstructions && dnsRecords.length > 0 && (
-          <div className="bg-background rounded-base border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-8">
+          <div className="dns-instructions bg-background rounded-base border-2 border-border shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-8">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold">DNS Configuration Required</h2>
               <button
@@ -254,7 +258,14 @@ export default function DomainsPage() {
           <div className="p-6">
             <h2 className="text-2xl font-bold mb-4">Your Domains</h2>
             
-            {domains.length === 0 ? (
+            {loadingDomains ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-border border-t-main"></div>
+                  <p className="text-lg font-bold">Searching for domains...</p>
+                </div>
+              </div>
+            ) : domains.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-lg font-medium mb-4">No custom domains added yet.</p>
                 <p className="text-sm">
@@ -325,36 +336,60 @@ export default function DomainsPage() {
                     </div>
                     <div className="flex gap-2">
                       {domain.vercelStatus === 'missing' ? (
-                        <button
-                          onClick={async () => {
-                            setLoading(true)
-                            try {
-                              // Re-add domain to Vercel
-                              const response = await fetch('/api/domains', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ domain: domain.domain })
-                              })
-                              const data = await response.json()
-                              if (response.ok) {
-                                setSuccess('Domain re-added to Vercel. Please configure DNS.')
-                                setDnsRecords(data.dnsRecords || [])
-                                setSelectedDomain(domain)
-                                setShowInstructions(true)
-                                fetchDomains()
-                              } else {
-                                setError(data.error || 'Failed to re-add domain')
+                        <>
+                          <button
+                            onClick={async () => {
+                              setLoading(true)
+                              try {
+                                // Re-add domain
+                                const response = await fetch('/api/domains', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ domain: domain.domain })
+                                })
+                                const data = await response.json()
+                                if (response.ok) {
+                                  setSuccess('Domain re-added. Please configure DNS.')
+                                  setDnsRecords(data.dnsRecords || [])
+                                  setSelectedDomain(domain)
+                                  setShowInstructions(true)
+                                  fetchDomains()
+                                } else {
+                                  setError(data.error || 'Failed to re-add domain')
+                                }
+                              } catch (err) {
+                                setError('Failed to re-add domain')
+                              } finally {
+                                setLoading(false)
                               }
-                            } catch (err) {
-                              setError('Failed to re-add domain to Vercel')
-                            } finally {
-                              setLoading(false)
-                            }
-                          }}
-                          className="px-4 py-2 font-bold bg-red-500 text-white border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
-                        >
-                          Re-add to Vercel
-                        </button>
+                            }}
+                            className="px-4 py-2 font-bold bg-main text-main-foreground border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                          >
+                            Re-add
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to delete ${domain.domain}?`)) {
+                                try {
+                                  const response = await fetch(`/api/domains/${domain.id}`, {
+                                    method: 'DELETE'
+                                  })
+                                  if (response.ok) {
+                                    setSuccess('Domain removed from your list')
+                                    fetchDomains()
+                                  } else {
+                                    setError('Failed to delete domain')
+                                  }
+                                } catch (err) {
+                                  setError('Failed to delete domain')
+                                }
+                              }
+                            }}
+                            className="px-4 py-2 font-bold bg-red-500 text-white border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                          >
+                            Delete
+                          </button>
+                        </>
                       ) : !domain.verified && (
                         <>
                           <button
@@ -372,9 +407,14 @@ export default function DomainsPage() {
                                       d.id === domain.id ? { ...d, vercelStatus: 'missing' } : d
                                     ))
                                   } else {
-                                    setSelectedDomain(data.domain)
+                                    // Successfully got DNS records, show them
+                                    setSelectedDomain(data.domain || domain)
                                     setDnsRecords(data.dnsRecords || [])
                                     setShowInstructions(true)
+                                    // Scroll to instructions
+                                    setTimeout(() => {
+                                      document.querySelector('.dns-instructions')?.scrollIntoView({ behavior: 'smooth' })
+                                    }, 100)
                                   }
                                 }
                               } catch (err) {
