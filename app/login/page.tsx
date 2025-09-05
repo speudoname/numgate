@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { usePlatformDetection } from '@/hooks/usePlatformDetection'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { isPlatform, tenantSlug } = usePlatformDetection()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -76,7 +78,12 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Sign in to your account</CardTitle>
-          <CardDescription>Welcome back to NumGate</CardDescription>
+          <CardDescription>
+            {isPlatform 
+              ? 'Welcome back to Komunate' 
+              : `Welcome back${tenantSlug ? ` to ${tenantSlug}` : ''}`
+            }
+          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -128,9 +135,11 @@ export default function LoginPage() {
               <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground">
                 Forgot password?
               </Link>
-              <Link href="/register" className="text-muted-foreground hover:text-foreground">
-                Create account
-              </Link>
+              {isPlatform && (
+                <Link href="/register" className="text-muted-foreground hover:text-foreground">
+                  Create account
+                </Link>
+              )}
             </div>
           </CardFooter>
         </form>

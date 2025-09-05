@@ -2,11 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { hashPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
+import { isPlatformDomain } from '@/lib/tenant/lookup'
 import type { Tenant, User } from '@/types/database'
 
 export async function POST(request: NextRequest) {
   try {
     const { tenantName, email, password, name } = await request.json()
+    const host = request.headers.get('host')
+    
+    // Check if this is a platform domain
+    // Registration is only allowed on platform domains
+    if (!isPlatformDomain(host)) {
+      return NextResponse.json(
+        { error: 'Registration is not available on tenant domains. Please visit komunate.com to create an account.' },
+        { status: 403 }
+      )
+    }
 
     // Validate input
     if (!tenantName || !email || !password) {
@@ -113,6 +124,21 @@ export async function POST(request: NextRequest) {
     )
     
     await Promise.all(appPromises)
+
+    // Create tenant_users entry (user as admin of their tenant)
+    const { error: membershipError } = await supabaseAdmin
+      .from('tenant_users')
+      .insert({
+        tenant_id: tenant.id,
+        user_id: user.id,
+        role: 'admin', // Owner becomes admin
+        created_by: user.id
+      })
+
+    if (membershipError) {
+      console.error('Failed to create tenant membership:', membershipError)
+      // Don't fail registration, but log the error
+    }
 
     // Generate JWT token
     const token = await generateToken({
