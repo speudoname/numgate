@@ -1,24 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { verifyPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
 import { isPlatformDomain } from '@/lib/tenant/lookup'
+import { loginSchema } from '@/lib/validations/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
     const host = request.headers.get('host')
     const tenantIdFromHeader = request.headers.get('x-tenant-id')
 
-    // Validate input
-    if (!email || !password) {
+    // Validate input with zod
+    const validation = loginSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Invalid input', details: validation.error.flatten() },
         { status: 400 }
       )
     }
+    
+    const { email, password } = validation.data
 
-    // Find user by email
+    // Find user by email - This MUST use service key because we need password_hash
+    // which should never be exposed via RLS
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('*')
@@ -45,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Check if we're on platform or tenant domain
     const isPlatform = isPlatformDomain(host)
 
-    // Get user's tenant memberships
+    // Get user's tenant memberships - Still needs service key for cross-tenant query
     let { data: memberships, error: membershipError } = await supabaseAdmin
       .from('tenant_users')
       .select(`

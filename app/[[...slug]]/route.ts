@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TenantPagesService } from '@/lib/blob/tenant-pages'
+import { TenantPagesService, BlobFolder } from '@/lib/blob/tenant-pages'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 /**
  * Get the tenant ID for komunate.com platform
+ * NOTE: This MUST use service key because it's a public query (no auth)
+ * and RLS would block it. This is safe because we're only reading
+ * the komunate tenant which is public information.
  */
 async function getKomunateTenantId(): Promise<string | null> {
   const { data: tenant } = await supabaseAdmin
@@ -63,7 +66,8 @@ export async function GET(
         const pagePath = path || 'index.html'
         const pageResponse = await TenantPagesService.getPage(
           komunateTenant,
-          pagePath.includes('.') ? pagePath : `${pagePath}.html`
+          pagePath.includes('.') ? pagePath : `${pagePath}.html`,
+          BlobFolder.HOMEPAGE
         )
         
         if (pageResponse) {
@@ -103,12 +107,12 @@ export async function GET(
     // Add .html extension if no extension present
     const pagePath = path.includes('.') ? path : `${path}.html`
     
-    // Fetch the page from Blob storage
-    const pageResponse = await TenantPagesService.getPage(tenantId, pagePath)
+    // Fetch the page from Blob storage (from homepage folder)
+    const pageResponse = await TenantPagesService.getPage(tenantId, pagePath, BlobFolder.HOMEPAGE)
     
     if (!pageResponse) {
       // Try without .html for exact matches
-      const exactResponse = await TenantPagesService.getPage(tenantId, path)
+      const exactResponse = await TenantPagesService.getPage(tenantId, path, BlobFolder.HOMEPAGE)
       if (!exactResponse) {
         // Try index.html as fallback
         if (path === 'index.html') {

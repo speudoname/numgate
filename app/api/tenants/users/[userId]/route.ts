@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { verifyToken } from '@/lib/auth/jwt'
 
 // PATCH - Update user role
@@ -39,8 +39,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
     }
 
-    // Update user role in tenant
-    const { data, error } = await supabaseAdmin
+    // Update user role in tenant - use anon client with RLS
+    const supabase = createServerClient(request)
+    
+    const { data, error } = await supabase
       .from('tenant_users')
       .update({ 
         role,
@@ -99,16 +101,19 @@ export async function DELETE(
     if (params.userId === payload.user_id) {
       return NextResponse.json({ error: 'Cannot remove yourself from the organization' }, { status: 400 })
     }
+    
+    // Create supabase client with RLS
+    const supabase = createServerClient(request)
 
     // Check if this is the last admin
-    const { data: admins } = await supabaseAdmin
+    const { data: admins } = await supabase
       .from('tenant_users')
       .select('id')
       .eq('tenant_id', payload.tenant_id)
       .eq('role', 'admin')
 
     if (admins && admins.length <= 1) {
-      const { data: userToRemove } = await supabaseAdmin
+      const { data: userToRemove } = await supabase
         .from('tenant_users')
         .select('role')
         .eq('tenant_id', payload.tenant_id)
@@ -123,7 +128,7 @@ export async function DELETE(
     }
 
     // Remove user from tenant
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('tenant_users')
       .delete()
       .eq('tenant_id', payload.tenant_id)

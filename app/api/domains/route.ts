@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { vercelDomains } from '@/lib/vercel/domains'
 import crypto from 'crypto'
+import { z } from 'zod'
+
+// Validation schema for adding domain
+const addDomainSchema = z.object({
+  domain: z.string().min(3).max(255).regex(/^[a-z0-9.-]+$/i, 'Invalid domain format')
+})
 
 // GET - List tenant's domains
 export async function GET(request: NextRequest) {
@@ -12,7 +18,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: domains, error } = await supabaseAdmin
+    // Use anon client - RLS will ensure tenant isolation
+    const supabase = createServerClient(request)
+    
+    const { data: domains, error } = await supabase
       .from('custom_domains')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -38,11 +47,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { domain } = await request.json()
+    const body = await request.json()
     
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    // Validate input
+    const validation = addDomainSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: validation.error.flatten() },
+        { status: 400 }
+      )
     }
+    
+    const { domain } = validation.data
 
     // Clean domain (remove protocol, www, trailing slash)
     const cleanDomain = domain
@@ -51,8 +67,10 @@ export async function POST(request: NextRequest) {
       .replace(/^www\./, '')
       .replace(/\/$/, '')
 
-    // Check if domain already exists
-    const { data: existingDomain } = await supabaseAdmin
+    // Check if domain already exists - use anon client
+    const supabase = createServerClient(request)
+    
+    const { data: existingDomain } = await supabase
       .from('custom_domains')
       .select('id')
       .eq('domain', cleanDomain)
@@ -88,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if this is the first domain for this tenant
-    const { count } = await supabaseAdmin
+    const { count } = await supabase
       .from('custom_domains')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
@@ -104,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Try with ssl_status first
     try {
-      const { data: newDomain, error } = await supabaseAdmin
+      const { data: newDomain, error } = await supabase
         .from('custom_domains')
         .insert({
           ...dbInsertData,
@@ -126,7 +144,7 @@ export async function POST(request: NextRequest) {
       // If ssl_status column doesn't exist, try without it
       if (error.message.includes('ssl_status')) {
         console.warn('ssl_status column not found, inserting without it')
-        const { data: newDomainNoSSL, error: errorNoSSL } = await supabaseAdmin
+        const { data: newDomainNoSSL, error: errorNoSSL } = await supabase
           .from('custom_domains')
           .insert(dbInsertData)
           .select()

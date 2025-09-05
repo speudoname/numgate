@@ -230,7 +230,7 @@ async function createTenantBlobs() {
       console.log(`\n📝 Processing tenant: ${tenant.name} (${tenant.slug})`)
       console.log(`   ID: ${tenant.id}`)
       
-      const blobPath = `${tenant.id}/pages/index.html`
+      const blobPath = `${tenant.id}/homepage/index.html`
       const existingBlob = blobs.find(b => b.pathname === blobPath)
       
       if (existingBlob) {
@@ -262,7 +262,7 @@ async function createTenantBlobs() {
     console.log('\n\n📋 Final blob inventory:')
     const { blobs: finalBlobs } = await list()
     
-    const tenantBlobs = finalBlobs.filter(b => b.pathname.includes('/pages/'))
+    const tenantBlobs = finalBlobs.filter(b => b.pathname.includes('/homepage/'))
     console.log(`Total tenant page blobs: ${tenantBlobs.length}`)
     
     tenantBlobs.forEach(blob => {

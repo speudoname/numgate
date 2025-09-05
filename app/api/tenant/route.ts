@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,8 +10,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get tenant information
-    const { data: tenant, error: tenantError } = await supabaseAdmin
+    // Get tenant information - use anon client with RLS
+    const supabase = createServerClient(request)
+    
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
       .eq('id', tenantId)
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user information
-    const { data: user, error: userError } = await supabaseAdmin
+    const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get enabled apps
-    const { data: apps, error: appsError } = await supabaseAdmin
+    const { data: apps, error: appsError } = await supabase
       .from('app_access')
       .select('*')
       .eq('tenant_id', tenantId)

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { vercelDomains } from '@/lib/vercel/domains'
 
 // POST - Trigger domain verification with Vercel
@@ -10,13 +10,14 @@ export async function POST(
   try {
     const resolvedParams = await params
     const tenantId = request.headers.get('x-tenant-id')
+    const supabase = createServerClient(request)
     
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get the domain from our database
-    const { data: domain, error: fetchError } = await supabaseAdmin
+    const { data: domain, error: fetchError } = await supabase
       .from('custom_domains')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -34,7 +35,7 @@ export async function POST(
     if (verificationResult.verified) {
       // Update domain as verified with ssl_status handling
       try {
-        await supabaseAdmin
+        await supabase
           .from('custom_domains')
           .update({ 
             verified: true,
@@ -45,7 +46,7 @@ export async function POST(
       } catch (err: any) {
         // If ssl_status column doesn't exist, try without it
         if (err.message?.includes('ssl_status')) {
-          await supabaseAdmin
+          await supabase
             .from('custom_domains')
             .update({ 
               verified: true,
@@ -58,7 +59,7 @@ export async function POST(
       }
 
       // Also update tenant's custom_domains array
-      const { data: tenant } = await supabaseAdmin
+      const { data: tenant } = await supabase
         .from('tenants')
         .select('custom_domains')
         .eq('id', tenantId)
@@ -66,7 +67,7 @@ export async function POST(
 
       const currentDomains = tenant?.custom_domains || []
       if (!currentDomains.includes(domain.domain)) {
-        await supabaseAdmin
+        await supabase
           .from('tenants')
           .update({ 
             custom_domains: [...currentDomains, domain.domain],

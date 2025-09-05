@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 
 // POST - Set domain as primary
 export async function POST(
@@ -9,13 +9,14 @@ export async function POST(
   try {
     const resolvedParams = await params
     const tenantId = request.headers.get('x-tenant-id')
+    const supabase = createServerClient(request)
     
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Start a transaction by first removing primary from all domains
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('custom_domains')
       .update({ is_primary: false })
       .eq('tenant_id', tenantId)
@@ -25,7 +26,7 @@ export async function POST(
     }
 
     // Set the selected domain as primary
-    const { data: domain, error: setPrimaryError } = await supabaseAdmin
+    const { data: domain, error: setPrimaryError } = await supabase
       .from('custom_domains')
       .update({ 
         is_primary: true,

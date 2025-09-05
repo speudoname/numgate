@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { vercelDomains } from '@/lib/vercel/domains'
 
 // GET - Get domain details including DNS records
@@ -15,8 +15,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get the domain
-    const { data: domain, error: fetchError } = await supabaseAdmin
+    // Get the domain - use anon client with RLS
+    const supabase = createServerClient(request)
+    
+    const { data: domain, error: fetchError } = await supabase
       .from('custom_domains')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -58,7 +60,9 @@ export async function DELETE(
     }
 
     // Get the domain first
-    const { data: domain, error: fetchError } = await supabaseAdmin
+    const supabase = createServerClient(request)
+    
+    const { data: domain, error: fetchError } = await supabase
       .from('custom_domains')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -77,7 +81,7 @@ export async function DELETE(
     }
 
     // Delete from our database
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError } = await supabase
       .from('custom_domains')
       .delete()
       .eq('id', resolvedParams.id)
@@ -88,7 +92,7 @@ export async function DELETE(
     }
 
     // Update tenant's custom_domains array
-    const { data: tenant } = await supabaseAdmin
+    const { data: tenant } = await supabase
       .from('tenants')
       .select('custom_domains')
       .eq('id', tenantId)
@@ -96,7 +100,7 @@ export async function DELETE(
 
     if (tenant?.custom_domains) {
       const updatedDomains = tenant.custom_domains.filter((d: string) => d !== domain.domain)
-      await supabaseAdmin
+      await supabase
         .from('tenants')
         .update({ 
           custom_domains: updatedDomains,

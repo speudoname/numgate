@@ -5,6 +5,20 @@ import { put, del, list, head } from '@vercel/blob'
  * Each tenant's pages are stored under their tenant_id prefix
  */
 
+/**
+ * Folder structure for tenant content:
+ * - {tenant_id}/homepage/ - Main homepage and site-wide pages
+ * - {tenant_id}/landing-pages/ - Marketing and campaign landing pages
+ * - {tenant_id}/media/ - Images, videos, and other media assets
+ * - {tenant_id}/versions/ - Versioned content (future implementation)
+ */
+export enum BlobFolder {
+  HOMEPAGE = 'homepage',
+  LANDING_PAGES = 'landing-pages',
+  MEDIA = 'media',
+  VERSIONS = 'versions'
+}
+
 export class TenantPagesService {
   /**
    * Generate a default index page for new tenants
@@ -88,15 +102,16 @@ export class TenantPagesService {
   }
 
   /**
-   * Store a page for a tenant
+   * Store a page for a tenant in the specified folder
    */
   static async storePage(
     tenantId: string, 
     pagePath: string, 
     content: string,
-    contentType: string = 'text/html'
+    contentType: string = 'text/html',
+    folder: BlobFolder = BlobFolder.HOMEPAGE
   ): Promise<{ url: string; pathname: string }> {
-    const blobPath = `${tenantId}/pages/${pagePath}`
+    const blobPath = `${tenantId}/${folder}/${pagePath}`
     
     const blob = await put(blobPath, content, {
       access: 'public',
@@ -111,17 +126,31 @@ export class TenantPagesService {
   }
 
   /**
-   * Get a page for a tenant
+   * Get a page for a tenant from the specified folder
+   * Falls back to old 'pages' folder for backward compatibility
    */
   static async getPage(
     tenantId: string,
-    pagePath: string
+    pagePath: string,
+    folder: BlobFolder = BlobFolder.HOMEPAGE
   ): Promise<Response | null> {
-    const blobPath = `${tenantId}/pages/${pagePath}`
+    // First try the new folder structure
+    const blobPath = `${tenantId}/${folder}/${pagePath}`
     
     try {
       // Try to get the blob metadata first
-      const metadata = await head(blobPath)
+      let metadata = await head(blobPath)
+      
+      // If not found in new structure, try old 'pages' folder for backward compatibility
+      if (!metadata) {
+        const oldPath = `${tenantId}/pages/${pagePath}`
+        try {
+          metadata = await head(oldPath)
+        } catch {
+          // Old path also doesn't exist
+        }
+      }
+      
       if (!metadata) return null
       
       // Fetch the actual content
@@ -134,21 +163,22 @@ export class TenantPagesService {
   }
 
   /**
-   * Delete a page for a tenant
+   * Delete a page for a tenant from the specified folder
    */
   static async deletePage(
     tenantId: string,
-    pagePath: string
+    pagePath: string,
+    folder: BlobFolder = BlobFolder.HOMEPAGE
   ): Promise<void> {
-    const blobPath = `${tenantId}/pages/${pagePath}`
+    const blobPath = `${tenantId}/${folder}/${pagePath}`
     await del(blobPath)
   }
 
   /**
-   * List all pages for a tenant
+   * List all pages for a tenant from the specified folder
    */
-  static async listPages(tenantId: string) {
-    const prefix = `${tenantId}/pages/`
+  static async listPages(tenantId: string, folder: BlobFolder = BlobFolder.HOMEPAGE) {
+    const prefix = `${tenantId}/${folder}/`
     const { blobs } = await list({ prefix })
     
     return blobs.map(blob => ({
@@ -160,15 +190,29 @@ export class TenantPagesService {
   }
 
   /**
+   * List all content across all folders for a tenant
+   */
+  static async listAllContent(tenantId: string) {
+    const folders = Object.values(BlobFolder)
+    const allContent: { [key: string]: any[] } = {}
+    
+    for (const folder of folders) {
+      allContent[folder] = await this.listPages(tenantId, folder as BlobFolder)
+    }
+    
+    return allContent
+  }
+
+  /**
    * Create default pages for a new tenant
    */
   static async createDefaultPages(tenantId: string, tenantName: string, tenantSlug: string) {
-    // Create default index page
+    // Create default index page in homepage folder
     const indexContent = this.generateDefaultIndexPage(tenantName, tenantSlug)
-    await this.storePage(tenantId, 'index.html', indexContent)
+    await this.storePage(tenantId, 'index.html', indexContent, 'text/html', BlobFolder.HOMEPAGE)
     
     // Could add more default pages here (404, about, etc.)
-    console.log(`Created default pages for tenant ${tenantId}`)
+    console.log(`Created default pages for tenant ${tenantId} in homepage folder`)
   }
 
   /**

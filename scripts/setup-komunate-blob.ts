@@ -246,7 +246,7 @@ async function setupKomunateBlob() {
     
     // Check existing blobs
     const { blobs } = await list()
-    const blobPath = `${tenant.id}/pages/index.html`
+    const blobPath = `${tenant.id}/homepage/index.html`
     const existingBlob = blobs.find(b => b.pathname === blobPath)
     
     if (existingBlob) {

@@ -64,7 +64,7 @@ async function createBlobStore() {
         
         if (store) {
           console.log('\n📝 Add this to your .env.local file:')
-          console.log(`BLOB_READ_WRITE_TOKEN=${store.token}`)
+          console.log(`BLOB_READ_WRITE_TOKEN=[REDACTED - Check Vercel Dashboard]`) // ${store.token}`)
           console.log('\n✅ Also add this environment variable in Vercel Dashboard:')
           console.log('1. Go to your project settings')
           console.log('2. Navigate to Environment Variables')
@@ -79,7 +79,7 @@ async function createBlobStore() {
 
     console.log('✅ Blob store created successfully!')
     console.log('\n📝 Add this to your .env.local file:')
-    console.log(`BLOB_READ_WRITE_TOKEN=${data.token}`)
+    console.log(`BLOB_READ_WRITE_TOKEN=[REDACTED - Check Vercel Dashboard]`) // ${data.token}`)
     console.log('\n✅ Also add this environment variable in Vercel Dashboard:')
     console.log('1. Go to your project settings')
     console.log('2. Navigate to Environment Variables')

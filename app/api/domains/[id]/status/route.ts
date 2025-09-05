@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
 import { vercelDomains } from '@/lib/vercel/domains'
 
 // GET - Get real-time domain status from Vercel
@@ -10,13 +10,14 @@ export async function GET(
   try {
     const resolvedParams = await params
     const tenantId = request.headers.get('x-tenant-id')
+    const supabase = createServerClient(request)
     
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get the domain from our database
-    const { data: domain, error: fetchError } = await supabaseAdmin
+    const { data: domain, error: fetchError } = await supabase
       .from('custom_domains')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -64,7 +65,7 @@ export async function GET(
 
     // Update our database with current verification status
     if (vercelStatus.verified !== domain.verified) {
-      await supabaseAdmin
+      await supabase
         .from('custom_domains')
         .update({ 
           verified: vercelStatus.verified,

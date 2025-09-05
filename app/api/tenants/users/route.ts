@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/server' // Still need for POST (user creation)
 import { verifyToken } from '@/lib/auth/jwt'
 import { hashPassword } from '@/lib/auth/password'
 
@@ -23,8 +24,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    // Get all users for this tenant
-    const { data: tenantUsers, error } = await supabaseAdmin
+    // Get all users for this tenant - use anon client with RLS
+    const supabase = createServerClient(request)
+    
+    const { data: tenantUsers, error } = await supabase
       .from('tenant_users')
       .select(`
         *,

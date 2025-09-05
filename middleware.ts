@@ -16,6 +16,19 @@ const routeHandlerPaths = ['/page-builder']
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get('host')
+  
+  // Helper to create response with security headers
+  const createSecureResponse = (response: NextResponse) => {
+    response.headers.set('X-Frame-Options', 'DENY')
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('X-XSS-Protection', '1; mode=block')
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    // Only set HSTS for production
+    if (process.env.NODE_ENV === 'production') {
+      response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    }
+    return response
+  }
 
   // Step 1: Detect if this is platform or tenant domain
   const isPlatform = isPlatformDomain(hostname)
