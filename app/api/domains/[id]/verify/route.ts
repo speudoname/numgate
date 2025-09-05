@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { vercelDomains } from '@/lib/vercel/domains'
 
 export async function POST(
   request: NextRequest,
@@ -29,16 +30,18 @@ export async function POST(
       return NextResponse.json({ message: 'Domain already verified' })
     }
 
-    // In production, you would check DNS TXT records here
-    // For testing, we'll auto-verify
-    // const dnsVerified = await checkDNSRecords(domain.domain, domain.verification_token)
+    // Check verification status with Vercel
+    const vercelStatus = await vercelDomains.verifyDomain(domain.domain)
     
-    // For testing: auto-verify
-    const dnsVerified = true
-
-    if (!dnsVerified) {
+    if (!vercelStatus.verified) {
+      // Get fresh status to return DNS records
+      const status = await vercelDomains.getDomainStatus(domain.domain)
+      
       return NextResponse.json({ 
-        error: 'DNS verification failed. Please ensure the TXT record is properly configured.' 
+        error: 'Domain not yet verified',
+        message: vercelStatus.message,
+        dnsRecords: status.dnsRecords,
+        verified: false
       }, { status: 400 })
     }
 
@@ -83,10 +86,3 @@ export async function POST(
   }
 }
 
-// Helper function to check DNS records (simplified for demo)
-async function checkDNSRecords(domain: string, expectedToken: string): Promise<boolean> {
-  // In production, use a DNS library like 'dns' or an external service
-  // to check TXT records at _komunate-verify.domain
-  // For now, return true for testing
-  return true
-}

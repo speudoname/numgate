@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { vercelDomains } from '@/lib/vercel/domains'
 import crypto from 'crypto'
 
 // GET - List tenant's domains
@@ -61,29 +62,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Domain already exists' }, { status: 400 })
     }
 
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(16).toString('hex')
+    // Add domain to Vercel first
+    const vercelResult = await vercelDomains.addDomain(cleanDomain)
+    
+    if (!vercelResult.success) {
+      return NextResponse.json({ 
+        error: vercelResult.error || 'Failed to add domain to Vercel' 
+      }, { status: 400 })
+    }
 
-    // Add domain to database
+    // Save to our database
     const { data: newDomain, error } = await supabaseAdmin
       .from('custom_domains')
       .insert({
         tenant_id: tenantId,
         domain: cleanDomain,
-        verification_token: verificationToken,
-        verified: false
+        verification_token: vercelResult.domain?.verification?.[0]?.value || '',
+        verified: vercelResult.domain?.verified || false,
+        ssl_status: vercelResult.domain?.verified ? 'active' : 'pending'
       })
       .select()
       .single()
 
     if (error) {
+      // Rollback Vercel domain if DB save fails
+      await vercelDomains.removeDomain(cleanDomain)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ 
       domain: newDomain,
-      verificationToken,
-      message: `Add TXT record: _komunate-verify.${cleanDomain} = ${verificationToken}`
+      vercelDomain: vercelResult.domain,
+      dnsRecords: vercelResult.dnsRecords,
+      message: 'Domain added successfully. Please configure your DNS records.',
+      verified: vercelResult.domain?.verified || false
     })
   } catch (error) {
     console.error('Error adding domain:', error)
