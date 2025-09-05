@@ -1,0 +1,122 @@
+import { supabaseAdmin } from '@/lib/supabase/server'
+
+/**
+ * Cache for tenant lookups to avoid hitting DB on every request
+ * In production, use Redis or Vercel KV
+ */
+const tenantCache = new Map<string, any>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+interface CachedTenant {
+  data: any
+  timestamp: number
+}
+
+/**
+ * Get tenant by domain
+ * Checks custom_domains first, then falls back to slug-based subdomains
+ */
+export async function getTenantByDomain(hostname: string | null): Promise<any> {
+  if (!hostname) return null
+
+  // Clean hostname (remove port, www, etc.)
+  const domain = hostname
+    .toLowerCase()
+    .replace(/:\d+$/, '') // Remove port
+    .replace(/^www\./, '') // Remove www
+
+  // Check cache first
+  const cached = tenantCache.get(domain) as CachedTenant
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data
+  }
+
+  try {
+    // First, check if this is a custom domain
+    const { data: customDomain } = await supabaseAdmin
+      .from('custom_domains')
+      .select(`
+        tenant_id,
+        verified,
+        tenants!inner (
+          id,
+          name,
+          slug,
+          email,
+          subscription_plan,
+          settings
+        )
+      `)
+      .eq('domain', domain)
+      .eq('verified', true)
+      .single()
+
+    if (customDomain?.tenants) {
+      const tenant = customDomain.tenants
+      // Cache the result
+      tenantCache.set(domain, {
+        data: tenant,
+        timestamp: Date.now()
+      })
+      return tenant
+    }
+
+    // If not a custom domain, check if it's a subdomain
+    // e.g., acme.komunate.com -> slug = acme
+    if (domain.includes('.komunate.com')) {
+      const slug = domain.split('.')[0]
+      
+      const { data: tenant } = await supabaseAdmin
+        .from('tenants')
+        .select('*')
+        .eq('slug', slug)
+        .single()
+
+      if (tenant) {
+        // Cache the result
+        tenantCache.set(domain, {
+          data: tenant,
+          timestamp: Date.now()
+        })
+        return tenant
+      }
+    }
+
+    // No tenant found for this domain
+    return null
+  } catch (error) {
+    console.error('Error looking up tenant:', error)
+    return null
+  }
+}
+
+/**
+ * Check if a domain is the platform domain (komunate.com)
+ */
+export function isPlatformDomain(hostname: string | null): boolean {
+  if (!hostname) return false
+  
+  const domain = hostname.toLowerCase()
+  
+  // Platform domains
+  const platformDomains = [
+    'komunate.com',
+    'www.komunate.com',
+    'localhost:3001',
+    'localhost:3000',
+    'numgate.vercel.app'
+  ]
+  
+  return platformDomains.some(pd => domain.includes(pd))
+}
+
+/**
+ * Clear tenant cache (useful after domain changes)
+ */
+export function clearTenantCache(domain?: string) {
+  if (domain) {
+    tenantCache.delete(domain)
+  } else {
+    tenantCache.clear()
+  }
+}

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
 import { APP_ROUTES, getAppFromPath } from '@/lib/proxy-config'
+import { getTenantByDomain, isPlatformDomain } from '@/lib/tenant/lookup'
 
 // Routes that don't require authentication
 const publicRoutes = ['/', '/login', '/register', '/forgot-password']
@@ -14,6 +15,28 @@ const routeHandlerPaths = ['/page-builder']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const hostname = request.headers.get('host')
+
+  // Step 1: Detect if this is platform or tenant domain
+  const isPlatform = isPlatformDomain(hostname)
+  const requestHeaders = new Headers(request.headers)
+  
+  if (isPlatform) {
+    // Platform mode - komunate.com
+    requestHeaders.set('x-platform-mode', 'true')
+  } else {
+    // Tenant mode - check for tenant
+    const tenant = await getTenantByDomain(hostname)
+    if (tenant) {
+      requestHeaders.set('x-tenant-domain', hostname || '')
+      requestHeaders.set('x-tenant-id', tenant.id)
+      requestHeaders.set('x-tenant-slug', tenant.slug)
+      requestHeaders.set('x-tenant-name', tenant.name)
+    } else {
+      // Unknown domain - show error page
+      requestHeaders.set('x-unknown-domain', 'true')
+    }
+  }
 
   // Skip middleware for route handler paths (they handle auth themselves)
   for (const routePath of routeHandlerPaths) {
@@ -144,7 +167,6 @@ export async function middleware(request: NextRequest) {
   }
 
   // Add user info to headers for API routes
-  const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-tenant-id', payload.tenant_id)
   requestHeaders.set('x-user-id', payload.user_id)
   requestHeaders.set('x-user-email', payload.email)
