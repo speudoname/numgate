@@ -120,19 +120,21 @@ export async function getTenantByDomain(hostname: string | null): Promise<any> {
 }
 
 /**
- * Check if a domain is the platform domain (komunate.com)
+ * Check if a domain is the platform domain
+ * Now that komunate.com is a regular tenant, only localhost is platform
  */
 export function isPlatformDomain(hostname: string | null): boolean {
   if (!hostname) return false
   
   const domain = hostname.toLowerCase()
   
-  // Platform domains (exact matches only, not subdomains)
+  // Platform domains - only development now
+  // komunate.com is now a regular tenant with custom domain
   const platformDomains = [
-    'komunate.com',
-    'www.komunate.com',
     'localhost',
     'localhost:3000',
+    'localhost:3007',
+    // Keep numgate.vercel.app as platform for now (deployment URL)
     'numgate.vercel.app'
   ]
   
