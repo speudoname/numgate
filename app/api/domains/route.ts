@@ -87,12 +87,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if this is the first domain for this tenant
+    const { count } = await supabaseAdmin
+      .from('custom_domains')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+    
     // Save to our database - try without ssl_status first in case column doesn't exist
     let dbInsertData: any = {
       tenant_id: tenantId,
       domain: cleanDomain,
       verification_token: vercelResult.domain?.verification?.[0]?.value || '',
-      verified: vercelResult.domain?.verified || false
+      verified: vercelResult.domain?.verified || false,
+      is_primary: count === 0 // First domain is automatically primary
     }
 
     // Try with ssl_status first

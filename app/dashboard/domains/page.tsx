@@ -10,6 +10,7 @@ interface CustomDomain {
   verified: boolean
   ssl_status: string
   created_at: string
+  is_primary?: boolean
   vercelStatus?: 'missing' | 'error' | 'active'
 }
 
@@ -295,6 +296,11 @@ export default function DomainsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <p className="font-bold text-lg">{domain.domain}</p>
+                        {domain.is_primary && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-white bg-main border-2 border-border rounded-base">
+                            Primary
+                          </span>
+                        )}
                         {domain.vercelStatus === 'missing' ? (
                           <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-red-900 bg-red-100 border-2 border-red-600 rounded-base">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -447,6 +453,28 @@ export default function DomainsPage() {
                             {verifying === domain.id ? 'Checking...' : 'Verify'}
                           </button>
                         </>
+                      )}
+                      {domain.verified && !domain.is_primary && (
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Make ${domain.domain} the primary domain?`)) {
+                              try {
+                                const response = await fetch(`/api/domains/${domain.id}/primary`, {
+                                  method: 'POST'
+                                })
+                                if (response.ok) {
+                                  setSuccess('Primary domain updated')
+                                  fetchDomains()
+                                }
+                              } catch (err) {
+                                setError('Failed to update primary domain')
+                              }
+                            }
+                          }}
+                          className="px-4 py-2 font-bold bg-main text-main-foreground border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                        >
+                          Make Primary
+                        </button>
                       )}
                       {domain.verified && (
                         <button

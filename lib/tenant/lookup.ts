@@ -98,15 +98,23 @@ export function isPlatformDomain(hostname: string | null): boolean {
   
   const domain = hostname.toLowerCase()
   
-  // Platform domains
+  // Platform domains (exact matches only, not subdomains)
   const platformDomains = [
     'komunate.com',
     'www.komunate.com',
     'localhost',
+    'localhost:3000',
     'numgate.vercel.app'
   ]
   
-  return platformDomains.some(pd => domain.includes(pd))
+  // Check for exact match, not just includes
+  // This prevents slug.komunate.com from being treated as platform
+  return platformDomains.some(pd => {
+    // Remove port for comparison if needed
+    const domainWithoutPort = domain.replace(/:\d+$/, '')
+    const pdWithoutPort = pd.replace(/:\d+$/, '')
+    return domainWithoutPort === pdWithoutPort
+  })
 }
 
 /**
