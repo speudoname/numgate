@@ -56,7 +56,7 @@ export function validateInput<T>(
     return { success: true, data: validated }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+      const errors = error.issues.map(e => `${e.path.join('.')}: ${e.message}`)
       return { success: false, errors }
     }
     return { success: false, errors: ['Invalid input'] }
