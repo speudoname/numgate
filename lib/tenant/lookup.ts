@@ -3,9 +3,28 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 /**
  * Cache for tenant lookups to avoid hitting DB on every request
  * In production, use Redis or Vercel KV
+ * 
+ * LRU cache implementation to prevent memory leaks
  */
+const MAX_CACHE_SIZE = 100 // Maximum number of cached tenants
 const tenantCache = new Map<string, any>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+// Helper to add to cache with LRU eviction
+function addToCache(domain: string, data: CachedTenant) {
+  // Delete and re-add to move to end (most recent)
+  if (tenantCache.has(domain)) {
+    tenantCache.delete(domain)
+  }
+  
+  // Evict oldest if at max size
+  if (tenantCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = tenantCache.keys().next().value
+    tenantCache.delete(firstKey)
+  }
+  
+  tenantCache.set(domain, data)
+}
 
 interface CachedTenant {
   data: any
@@ -53,8 +72,8 @@ export async function getTenantByDomain(hostname: string | null): Promise<any> {
 
     if (customDomain?.tenants) {
       const tenant = customDomain.tenants
-      // Cache the result
-      tenantCache.set(domain, {
+      // Cache the result with LRU eviction
+      addToCache(domain, {
         data: tenant,
         timestamp: Date.now()
       })

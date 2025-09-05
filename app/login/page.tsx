@@ -51,7 +51,7 @@ export default function LoginPage() {
         return
       }
 
-      console.log('Login successful, redirecting...')
+      // Login successful, redirecting...
       
       // Check if we need to redirect to a custom domain
       if (data.redirectUrl) {
