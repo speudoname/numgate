@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    // Get all users for this tenant - use anon client with RLS
-    const supabase = createServerClient(request)
+    // Use admin client since our custom JWT doesn't integrate with Supabase RLS
+    // Security is ensured by token validation and explicit tenant_id filtering
+    const supabase = supabaseAdmin
     
     const { data: tenantUsers, error } = await supabase
       .from('tenant_users')

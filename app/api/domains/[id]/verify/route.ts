@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/server'
 import { vercelDomains } from '@/lib/vercel/domains'
 
 // POST - Trigger domain verification with Vercel
@@ -10,7 +10,8 @@ export async function POST(
   try {
     const resolvedParams = await params
     const tenantId = request.headers.get('x-tenant-id')
-    const supabase = createServerClient(request)
+    // Use admin client since custom JWT doesn't integrate with RLS for domain operations
+    const supabase = supabaseAdmin
     
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

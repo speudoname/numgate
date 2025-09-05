@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get tenant information - use anon client with RLS
-    const supabase = createServerClient(request)
+    // Use admin client since our custom JWT doesn't integrate with Supabase RLS
+    // Security is ensured by middleware validation and explicit filtering
+    const supabase = supabaseAdmin
     
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')

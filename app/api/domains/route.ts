@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/server'
 import { vercelDomains } from '@/lib/vercel/domains'
 import crypto from 'crypto'
 import { z } from 'zod'
@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use anon client - RLS will ensure tenant isolation
-    const supabase = createServerClient(request)
+    // Use admin client since our custom JWT doesn't integrate with Supabase RLS
+    // Security is ensured by middleware validation and explicit tenant_id filtering
+    const supabase = supabaseAdmin
     
     const { data: domains, error } = await supabase
       .from('custom_domains')
@@ -67,8 +68,8 @@ export async function POST(request: NextRequest) {
       .replace(/^www\./, '')
       .replace(/\/$/, '')
 
-    // Check if domain already exists - use anon client
-    const supabase = createServerClient(request)
+    // Use admin client for domain checking
+    const supabase = supabaseAdmin
     
     const { data: existingDomain } = await supabase
       .from('custom_domains')
