@@ -20,7 +20,9 @@ function addToCache(domain: string, data: CachedTenant) {
   // Evict oldest if at max size
   if (tenantCache.size >= MAX_CACHE_SIZE) {
     const firstKey = tenantCache.keys().next().value
-    tenantCache.delete(firstKey)
+    if (firstKey !== undefined) {
+      tenantCache.delete(firstKey)
+    }
   }
   
   tenantCache.set(domain, data)

@@ -189,10 +189,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // Add user info to headers for API routes
-  requestHeaders.set('x-tenant-id', payload.tenant_id)
   requestHeaders.set('x-user-id', payload.user_id)
   requestHeaders.set('x-user-email', payload.email)
   requestHeaders.set('x-user-role', payload.role)
+  
+  // For tenant ID: use subdomain tenant if available, otherwise use JWT's tenant
+  // This allows users to access their tenant data on platform domain too
+  if (!requestHeaders.has('x-tenant-id')) {
+    // Platform mode - use tenant from JWT
+    requestHeaders.set('x-tenant-id', payload.tenant_id)
+  }
+  // If x-tenant-id is already set (from subdomain), keep it
 
   return NextResponse.next({
     request: {
