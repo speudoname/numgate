@@ -63,8 +63,24 @@ export default function RegisterPage() {
         return
       }
 
-      // Redirect to dashboard
-      router.push('/dashboard')
+      // Redirect to tenant's subdomain dashboard
+      if (data.tenant && data.tenant.slug) {
+        // Use window.location for full page redirect to subdomain
+        const subdomain = data.tenant.slug
+        const protocol = window.location.protocol
+        const port = window.location.port ? `:${window.location.port}` : ''
+        const newUrl = `${protocol}//${subdomain}.komunate.com${port}/dashboard`
+        
+        // For localhost development, use the same port
+        if (window.location.hostname === 'localhost') {
+          window.location.href = `${protocol}//${subdomain}.localhost${port}/dashboard`
+        } else {
+          window.location.href = newUrl
+        }
+      } else {
+        // Fallback to regular dashboard
+        router.push('/dashboard')
+      }
     } catch (err) {
       setError('Network error. Please try again.')
     } finally {

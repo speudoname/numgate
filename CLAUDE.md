@@ -1,6 +1,7 @@
 ## Important Development Rules
      - **NEVER ASSUME**: Always align with the user before making implementation decisions
      - **ASK QUESTIONS**: When unclear about requirements, ask for clarification
+     - **AMBIGUITY RULE**: When something is not clear and there's ~50/50 understanding, ALWAYS ask for clarification instead of guessing
      - **SLOW AND STEADY**: Build features incrementally and verify each step with the user
      - **CONFIRM APPROACH**: Before implementing, explain the approach and get approval
 
