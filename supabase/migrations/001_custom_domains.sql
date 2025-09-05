@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS public.custom_domains (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create index for faster domain lookups
-CREATE INDEX idx_custom_domains_domain ON public.custom_domains(domain);
-CREATE INDEX idx_custom_domains_tenant_id ON public.custom_domains(tenant_id);
+-- Create indexes if they don't exist
+CREATE INDEX IF NOT EXISTS idx_custom_domains_domain ON public.custom_domains(domain);
+CREATE INDEX IF NOT EXISTS idx_custom_domains_tenant_id ON public.custom_domains(tenant_id);
 
 -- Add trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()

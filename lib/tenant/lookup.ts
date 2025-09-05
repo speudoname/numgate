@@ -102,8 +102,7 @@ export function isPlatformDomain(hostname: string | null): boolean {
   const platformDomains = [
     'komunate.com',
     'www.komunate.com',
-    'localhost:3001',
-    'localhost:3000',
+    'localhost',
     'numgate.vercel.app'
   ]
   
