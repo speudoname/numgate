@@ -163,19 +163,27 @@ export async function middleware(request: NextRequest) {
     })
   }
 
-  // Check if it's a super admin route
-  if (pathname.startsWith('/super-admin')) {
+  // Check if it's a super admin route (including API routes)
+  if (pathname.startsWith('/super-admin') || pathname.startsWith('/api/super-admin')) {
     const authCookie = request.cookies.get('auth-token')
     const token = authCookie?.value
     
     if (!token) {
+      // For API routes, return 401 instead of redirect
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
       return NextResponse.redirect(new URL('/login', request.url))
     }
     
     const payload = await verifyToken(token)
     
     if (!payload || !payload.is_super_admin) {
-      // Not a super admin, redirect to regular dashboard
+      // Not a super admin
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Forbidden - Super admin required' }, { status: 403 })
+      }
+      // Redirect to regular dashboard for page routes
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
     
