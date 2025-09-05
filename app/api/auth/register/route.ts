@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { hashPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
 import { isPlatformDomain } from '@/lib/tenant/lookup'
+import { TenantPagesService } from '@/lib/blob/tenant-pages'
 import type { Tenant, User } from '@/types/database'
 
 export async function POST(request: NextRequest) {
@@ -138,6 +139,14 @@ export async function POST(request: NextRequest) {
     if (membershipError) {
       console.error('Failed to create tenant membership:', membershipError)
       // Don't fail registration, but log the error
+    }
+
+    // Create default pages in Blob storage for the new tenant
+    try {
+      await TenantPagesService.createDefaultPages(tenant.id, tenant.name, tenant.slug)
+    } catch (blobError) {
+      console.error('Failed to create default pages:', blobError)
+      // Don't fail registration if blob creation fails
     }
 
     // Generate JWT token

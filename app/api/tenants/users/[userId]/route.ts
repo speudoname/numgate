@@ -1,0 +1,138 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
+import { verifyToken } from '@/lib/auth/jwt'
+
+// PATCH - Update user role
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    // Get auth token
+    const token = request.cookies.get('auth-token')?.value
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify token and get user info
+    const payload = await verifyToken(token)
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
+
+    // Check if user is admin
+    if (payload.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const { role } = await request.json()
+    
+    if (!role || !['admin', 'member', 'viewer'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
+
+    // Prevent self-demotion
+    if (params.userId === payload.user_id && role !== 'admin') {
+      return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
+    }
+
+    // Update user role in tenant
+    const { data, error } = await supabaseAdmin
+      .from('tenant_users')
+      .update({ 
+        role,
+        updated_at: new Date().toISOString()
+      })
+      .eq('tenant_id', payload.tenant_id)
+      .eq('user_id', params.userId)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'User not found in this organization' }, { status: 404 })
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'User role updated successfully'
+    })
+  } catch (error) {
+    console.error('Error updating user role:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE - Remove user from tenant
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    // Get auth token
+    const token = request.cookies.get('auth-token')?.value
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify token and get user info
+    const payload = await verifyToken(token)
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
+
+    // Check if user is admin
+    if (payload.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    // Prevent self-removal
+    if (params.userId === payload.user_id) {
+      return NextResponse.json({ error: 'Cannot remove yourself from the organization' }, { status: 400 })
+    }
+
+    // Check if this is the last admin
+    const { data: admins } = await supabaseAdmin
+      .from('tenant_users')
+      .select('id')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('role', 'admin')
+
+    if (admins && admins.length <= 1) {
+      const { data: userToRemove } = await supabaseAdmin
+        .from('tenant_users')
+        .select('role')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('user_id', params.userId)
+        .single()
+
+      if (userToRemove?.role === 'admin') {
+        return NextResponse.json({ 
+          error: 'Cannot remove the last admin from the organization' 
+        }, { status: 400 })
+      }
+    }
+
+    // Remove user from tenant
+    const { error } = await supabaseAdmin
+      .from('tenant_users')
+      .delete()
+      .eq('tenant_id', payload.tenant_id)
+      .eq('user_id', params.userId)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'User removed from organization successfully'
+    })
+  } catch (error) {
+    console.error('Error removing user from tenant:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

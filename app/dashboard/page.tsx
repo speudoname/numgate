@@ -208,7 +208,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link
+            href="/dashboard/users"
+            className="bg-white p-6 rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+          >
+            <h3 className="text-lg font-bold mb-2">👥 Team Members</h3>
+            <p className="text-sm text-gray-600">Manage users in your organization</p>
+          </Link>
           <Link
             href="/settings"
             className="bg-white p-6 rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
@@ -217,7 +224,7 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-600">Manage your account and organization settings</p>
           </Link>
           <Link
-            href="/domains"
+            href="/dashboard/domains"
             className="bg-white p-6 rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
           >
             <h3 className="text-lg font-bold mb-2">🌐 Domains</h3>
