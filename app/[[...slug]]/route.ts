@@ -8,9 +8,12 @@ import { TenantPagesService } from '@/lib/blob/tenant-pages'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slug?: string[] } }
+  context: { params: Promise<{ slug?: string[] }> }
 ) {
   try {
+    // Await params as it's now a Promise in Next.js 15
+    const params = await context.params
+    
     // Get tenant info from headers (set by middleware)
     const tenantId = request.headers.get('x-tenant-id')
     const isPlatform = request.headers.get('x-platform-mode') === 'true'
