@@ -45,19 +45,20 @@ BEGIN
     WHERE tenant_id = v_komunate_tenant_id 
     AND user_id = v_user_id
   ) THEN
+    -- Use 'admin' role (valid values are: admin, member, viewer)
     INSERT INTO tenant_users (tenant_id, user_id, role)
-    VALUES (v_komunate_tenant_id, v_user_id, 'owner');
+    VALUES (v_komunate_tenant_id, v_user_id, 'admin');
     
-    RAISE NOTICE '✅ Added levan@sarke.ge as owner of komunate tenant';
+    RAISE NOTICE '✅ Added levan@sarke.ge as admin of komunate tenant';
   ELSE
-    -- Update role to owner if different
+    -- Update role to admin if different
     UPDATE tenant_users 
-    SET role = 'owner'
+    SET role = 'admin'
     WHERE tenant_id = v_komunate_tenant_id 
     AND user_id = v_user_id
-    AND role != 'owner';
+    AND role != 'admin';
     
-    RAISE NOTICE '✅ User already in komunate tenant (updated role to owner)';
+    RAISE NOTICE '✅ User already in komunate tenant (updated role to admin)';
   END IF;
 
   -- ============================================
@@ -149,7 +150,7 @@ BEGIN
   RAISE NOTICE '📋 Summary:';
   RAISE NOTICE '  ✓ komunate.komunate.com → Tenant subdomain';
   RAISE NOTICE '  ✓ komunate.com → Verified custom domain';
-  RAISE NOTICE '  ✓ levan@sarke.ge → Owner of komunate tenant';
+  RAISE NOTICE '  ✓ levan@sarke.ge → Admin of komunate tenant';
   RAISE NOTICE '  ✓ Super admin access → Still works (user property)';
   RAISE NOTICE '';
   RAISE NOTICE '🚀 Next Steps:';
