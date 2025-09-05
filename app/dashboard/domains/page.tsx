@@ -17,6 +17,7 @@ interface DNSRecord {
   name: string
   value: string
   ttl?: number
+  purpose?: 'verification' | 'routing'
 }
 
 export default function DomainsPage() {
@@ -40,7 +41,28 @@ export default function DomainsPage() {
       const response = await fetch('/api/domains')
       if (response.ok) {
         const data = await response.json()
-        setDomains(data.domains || [])
+        const domainsWithStatus = data.domains || []
+        
+        // Fetch real-time status for each domain
+        const updatedDomains = await Promise.all(
+          domainsWithStatus.map(async (domain: CustomDomain) => {
+            try {
+              const statusResponse = await fetch(`/api/domains/${domain.id}/status`)
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json()
+                return {
+                  ...domain,
+                  verified: statusData.verified
+                }
+              }
+            } catch (err) {
+              console.error(`Error fetching status for ${domain.domain}:`, err)
+            }
+            return domain
+          })
+        )
+        
+        setDomains(updatedDomains)
       }
     } catch (err) {
       console.error('Error fetching domains:', err)
@@ -94,23 +116,49 @@ export default function DomainsPage() {
     setSuccess('')
 
     try {
-      const response = await fetch(`/api/domains/${domainId}/verify`, {
-        method: 'POST'
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        setSuccess('Domain verified successfully! SSL certificate will be provisioned shortly.')
+      // First get current status from Vercel
+      const statusResponse = await fetch(`/api/domains/${domainId}/status`)
+      if (!statusResponse.ok) {
+        setError('Failed to check domain status')
+        return
+      }
+      
+      const statusData = await statusResponse.json()
+      
+      if (statusData.verified) {
+        setSuccess('Domain is already verified! SSL certificate is active.')
         fetchDomains()
         setShowInstructions(false)
       } else {
-        setError(data.message || 'Verification pending. Please ensure DNS records are configured.')
-        if (data.dnsRecords) {
-          setDnsRecords(data.dnsRecords)
+        // Show current DNS requirements
+        const verificationRecords = statusData.dnsRecords?.filter((r: DNSRecord) => r.purpose === 'verification') || []
+        if (verificationRecords.length > 0) {
+          setError('Domain verification pending. Please add the required DNS records below:')
+          setDnsRecords(statusData.dnsRecords)
           setShowInstructions(true)
           const domain = domains.find(d => d.id === domainId)
           if (domain) setSelectedDomain(domain)
+        } else {
+          // Try to trigger verification check
+          const response = await fetch(`/api/domains/${domainId}/verify`, {
+            method: 'POST'
+          })
+          
+          const data = await response.json()
+          
+          if (response.ok && data.verified) {
+            setSuccess('Domain verified successfully! SSL certificate will be provisioned shortly.')
+            fetchDomains()
+            setShowInstructions(false)
+          } else {
+            setError(data.message || 'Verification pending. Please ensure DNS records are configured.')
+            if (data.dnsRecords) {
+              setDnsRecords(data.dnsRecords)
+              setShowInstructions(true)
+              const domain = domains.find(d => d.id === domainId)
+              if (domain) setSelectedDomain(domain)
+            }
+          }
         }
       }
     } catch (err) {
@@ -260,7 +308,7 @@ export default function DomainsPage() {
                           <button
                             onClick={async () => {
                               try {
-                                const response = await fetch(`/api/domains/${domain.id}`)
+                                const response = await fetch(`/api/domains/${domain.id}/status`)
                                 if (response.ok) {
                                   const data = await response.json()
                                   setSelectedDomain(data.domain)
