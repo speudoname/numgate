@@ -5,6 +5,61 @@
      - **SLOW AND STEADY**: Build features incrementally and verify each step with the user
      - **CONFIRM APPROACH**: Before implementing, explain the approach and get approval
 
+## 🎓 LESSONS LEARNED - CRITICAL KNOWLEDGE
+
+### RLS (Row Level Security) Gotchas
+**RLS is powerful but can break public routes!**
+
+#### When RLS Breaks Things:
+- Public routes (catch-all, subdomain lookup) can't read data with RLS enabled
+- Solution: Use service key OR create public RLS policies for these specific cases
+- Remember: Even "public" pages need to read tenant info from database
+
+#### RLS Policy Syntax Rules:
+- **SELECT/DELETE**: Use only `USING` clause (no `WITH CHECK`)
+- **INSERT**: Use only `WITH CHECK` clause (no `USING`) 
+- **UPDATE**: Use both `USING` (for read) and `WITH CHECK` (for write)
+- **ALL**: Use both `USING` and `WITH CHECK`
+
+Example:
+```sql
+-- ✅ CORRECT for SELECT
+CREATE POLICY "read_policy" ON table
+  FOR SELECT USING (condition);
+
+-- ✅ CORRECT for INSERT  
+CREATE POLICY "insert_policy" ON table
+  FOR INSERT WITH CHECK (condition);
+
+-- ✅ CORRECT for UPDATE
+CREATE POLICY "update_policy" ON table
+  FOR UPDATE 
+  USING (can_read_condition)
+  WITH CHECK (can_write_condition);
+```
+
+### Service Key vs Anon Key Decision Tree:
+```
+Is it a public route (no auth)?
+├─ Yes → Does it need to read tenant/domain data?
+│   ├─ Yes → Use service key OR create public RLS policy
+│   └─ No → Use anon key
+└─ No → Is it creating users/tenants?
+    ├─ Yes → Use service key (bypass RLS)
+    └─ No → Use anon key (respect RLS)
+```
+
+### What Breaks When You Enable RLS:
+1. **Subdomain resolution** - Can't lookup tenant by slug
+2. **Public pages** - Can't read tenant info to serve content
+3. **Domain verification** - Can't check if domain exists
+4. **Catch-all routes** - Can't identify tenant
+
+### How to Fix RLS Breaking Public Access:
+1. Create public read policies for basic info
+2. OR use service key for specific public lookups
+3. Keep write operations restricted to authenticated users
+
 ## 🔒 CRITICAL SECURITY RULES - MUST FOLLOW
 
 ### Supabase Client Usage

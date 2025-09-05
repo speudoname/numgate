@@ -26,10 +26,10 @@ CREATE POLICY "Public can read domains for verification" ON custom_domains
   FOR SELECT
   USING (true);  -- Public can check if domain exists
 
--- Only admins can modify domains
-CREATE POLICY "Admins manage domains" ON custom_domains
+-- Only admins can insert new domains
+CREATE POLICY "Admins can insert domains" ON custom_domains
   FOR INSERT
-  USING (
+  WITH CHECK (
     public.user_has_tenant_access(tenant_id) AND
     EXISTS (
       SELECT 1 FROM tenant_users
