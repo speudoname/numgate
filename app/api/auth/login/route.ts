@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get tenant information
+    // Get tenant information with custom domains
     const { data: tenant, error: tenantError } = await supabaseAdmin
       .from('tenants')
       .select('*')
@@ -53,6 +53,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check for verified custom domains
+    const { data: customDomains } = await supabaseAdmin
+      .from('custom_domains')
+      .select('domain')
+      .eq('tenant_id', tenant.id)
+      .eq('verified', true)
+      .limit(1)
+
     // Generate JWT token
     const token = await generateToken({
       tenant_id: tenant.id,
@@ -62,6 +70,27 @@ export async function POST(request: NextRequest) {
       permissions: user.permissions || []
     })
 
+    // Determine redirect URL based on domain
+    let redirectUrl = '/dashboard' // Default to dashboard on same domain
+    
+    // Check if we're on the platform domain (komunate.com)
+    const host = request.headers.get('host')
+    const isPlatformDomain = host?.includes('localhost') || 
+                            host?.includes('komunate.com') || 
+                            host?.includes('numgate.vercel.app')
+    
+    if (isPlatformDomain) {
+      // User is logging in from komunate.com
+      if (customDomains && customDomains.length > 0) {
+        // Redirect to their custom domain
+        redirectUrl = `https://${customDomains[0].domain}/dashboard`
+      } else {
+        // Redirect to subdomain (future feature)
+        // For now, stay on platform with dashboard
+        redirectUrl = '/dashboard'
+      }
+    }
+    
     // Create response with cookie header
     const response = NextResponse.json({
       success: true,
@@ -76,7 +105,8 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role
       },
-      token
+      token,
+      redirectUrl // Include where frontend should redirect
     }, {
       status: 200,
       headers: {

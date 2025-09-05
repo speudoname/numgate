@@ -44,9 +44,21 @@ export default function LoginPage() {
         return
       }
 
-      console.log('Login successful, redirecting to dashboard...')
-      // Force redirect to dashboard
-      window.location.href = '/dashboard'
+      console.log('Login successful, redirecting...')
+      
+      // Check if we need to redirect to a custom domain
+      if (data.redirectUrl) {
+        if (data.redirectUrl.startsWith('http')) {
+          // External redirect to custom domain
+          window.location.href = data.redirectUrl
+        } else {
+          // Internal redirect
+          router.push(data.redirectUrl)
+        }
+      } else {
+        // Fallback to dashboard
+        router.push('/dashboard')
+      }
     } catch (err) {
       setError('Network error. Please try again.')
     } finally {

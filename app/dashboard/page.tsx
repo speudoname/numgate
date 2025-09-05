@@ -165,10 +165,14 @@ export default function DashboardPage() {
             <h3 className="text-sm font-medium text-gray-600 mb-1">Role</h3>
             <p className="text-2xl font-bold capitalize">{data.user.role}</p>
           </div>
-          <div className="bg-white p-6 rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <Link 
+            href="/dashboard/domains"
+            className="bg-white p-6 rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer block"
+          >
             <h3 className="text-sm font-medium text-gray-600 mb-1">Custom Domains</h3>
-            <p className="text-2xl font-bold">{data.tenant.custom_domains.length || 0}</p>
-          </div>
+            <p className="text-2xl font-bold">{data.tenant.custom_domains?.length || 0}</p>
+            <p className="text-xs text-blue-600 mt-1">Manage →</p>
+          </Link>
         </div>
 
         {/* Applications */}
