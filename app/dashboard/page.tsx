@@ -65,7 +65,18 @@ export default function DashboardPage() {
 
   const handleNavigateToApp = async (appName: string) => {
     if (appName === 'page_builder') {
-      // Navigate to page builder - nginx will handle cookie/header passing securely
+      // Navigate to page builder with authentication
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+      
+      if (token) {
+        // Set a cookie that page builder can read
+        document.cookie = `pb-auth-token=${token}; path=/; secure; samesite=strict`
+      }
+      
+      // Navigate to page builder route
       window.location.href = '/page-builder'
     }
   }
