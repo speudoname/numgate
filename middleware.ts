@@ -9,8 +9,41 @@ const publicRoutes = ['/', '/login', '/register', '/forgot-password']
 // API routes that don't require authentication
 const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/test', '/api/proxy']
 
+// Routes that are handled by route handlers (not pages)
+const routeHandlerPaths = ['/page-builder']
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Skip middleware for route handler paths (they handle auth themselves)
+  for (const routePath of routeHandlerPaths) {
+    if (pathname.startsWith(routePath)) {
+      // Still add auth headers if available, but don't block
+      const authCookie = request.cookies.get('auth-token')
+      const token = authCookie?.value
+      
+      if (token) {
+        const payload = await verifyToken(token)
+        if (payload) {
+          const requestHeaders = new Headers(request.headers)
+          requestHeaders.set('x-tenant-id', payload.tenant_id)
+          requestHeaders.set('x-user-id', payload.user_id)
+          requestHeaders.set('x-user-email', payload.email)
+          requestHeaders.set('x-user-role', payload.role)
+          requestHeaders.set('x-auth-token', token)
+          
+          return NextResponse.next({
+            request: {
+              headers: requestHeaders,
+            },
+          })
+        }
+      }
+      
+      // Allow through even without auth (route handler will handle it)
+      return NextResponse.next()
+    }
+  }
 
   // Allow proxy API routes to pass through without authentication
   if (pathname.startsWith('/api/proxy/')) {
