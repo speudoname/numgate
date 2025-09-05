@@ -63,8 +63,16 @@ export async function getTenantByDomain(hostname: string | null): Promise<any> {
 
     // If not a custom domain, check if it's a subdomain
     // e.g., acme.komunate.com -> slug = acme
-    if (domain.includes('.komunate.com')) {
+    // Also support localhost subdomains for development
+    const isSubdomain = domain.includes('.komunate.com') || 
+                       domain.includes('.localhost') ||
+                       domain.includes('.vercel.app')
+    
+    if (isSubdomain) {
       const slug = domain.split('.')[0]
+      
+      // Don't treat www as a tenant slug
+      if (slug === 'www') return null
       
       const { data: tenant } = await supabaseAdmin
         .from('tenants')
