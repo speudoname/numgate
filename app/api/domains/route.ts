@@ -66,37 +66,90 @@ export async function POST(request: NextRequest) {
     const vercelResult = await vercelDomains.addDomain(cleanDomain)
     
     if (!vercelResult.success) {
-      return NextResponse.json({ 
-        error: vercelResult.error || 'Failed to add domain to Vercel' 
-      }, { status: 400 })
+      // Check if error is because domain already exists in Vercel
+      if (vercelResult.error?.includes('already exists') || vercelResult.error?.includes('is already in use')) {
+        // Try to get existing domain status from Vercel
+        const existingStatus = await vercelDomains.getDomainStatus(cleanDomain)
+        if (existingStatus.success) {
+          // Domain exists in Vercel, continue with our database
+          vercelResult.domain = existingStatus.domain
+          vercelResult.dnsRecords = existingStatus.dnsRecords
+          vercelResult.success = true
+        } else {
+          return NextResponse.json({ 
+            error: vercelResult.error || 'Failed to add domain to Vercel' 
+          }, { status: 400 })
+        }
+      } else {
+        return NextResponse.json({ 
+          error: vercelResult.error || 'Failed to add domain to Vercel' 
+        }, { status: 400 })
+      }
     }
 
-    // Save to our database
-    const { data: newDomain, error } = await supabaseAdmin
-      .from('custom_domains')
-      .insert({
-        tenant_id: tenantId,
-        domain: cleanDomain,
-        verification_token: vercelResult.domain?.verification?.[0]?.value || '',
-        verified: vercelResult.domain?.verified || false,
-        ssl_status: vercelResult.domain?.verified ? 'active' : 'pending'
-      })
-      .select()
-      .single()
+    // Save to our database - try without ssl_status first in case column doesn't exist
+    let dbInsertData: any = {
+      tenant_id: tenantId,
+      domain: cleanDomain,
+      verification_token: vercelResult.domain?.verification?.[0]?.value || '',
+      verified: vercelResult.domain?.verified || false
+    }
 
-    if (error) {
-      // Rollback Vercel domain if DB save fails
+    // Try with ssl_status first
+    try {
+      const { data: newDomain, error } = await supabaseAdmin
+        .from('custom_domains')
+        .insert({
+          ...dbInsertData,
+          ssl_status: vercelResult.domain?.verified ? 'active' : 'pending'
+        })
+        .select()
+        .single()
+
+      if (!error) {
+        return NextResponse.json({ 
+          domain: newDomain,
+          vercelDomain: vercelResult.domain,
+          dnsRecords: vercelResult.dnsRecords,
+          message: 'Domain added successfully. Please configure your DNS records.',
+          verified: vercelResult.domain?.verified || false
+        })
+      }
+
+      // If ssl_status column doesn't exist, try without it
+      if (error.message.includes('ssl_status')) {
+        console.warn('ssl_status column not found, inserting without it')
+        const { data: newDomainNoSSL, error: errorNoSSL } = await supabaseAdmin
+          .from('custom_domains')
+          .insert(dbInsertData)
+          .select()
+          .single()
+
+        if (!errorNoSSL && newDomainNoSSL) {
+          return NextResponse.json({ 
+            domain: newDomainNoSSL,
+            vercelDomain: vercelResult.domain,
+            dnsRecords: vercelResult.dnsRecords,
+            message: 'Domain added successfully. Please configure your DNS records.',
+            verified: vercelResult.domain?.verified || false
+          })
+        }
+        
+        // If still fails, rollback Vercel domain
+        await vercelDomains.removeDomain(cleanDomain)
+        return NextResponse.json({ error: errorNoSSL?.message || 'Failed to save domain' }, { status: 500 })
+      }
+
+      // Other errors - rollback Vercel domain
       await vercelDomains.removeDomain(cleanDomain)
       return NextResponse.json({ error: error.message }, { status: 500 })
+      
+    } catch (err: any) {
+      console.error('Database error:', err)
+      // Rollback Vercel domain if DB save fails
+      await vercelDomains.removeDomain(cleanDomain)
+      return NextResponse.json({ error: err.message || 'Failed to save domain' }, { status: 500 })
     }
-
-    return NextResponse.json({ 
-      domain: newDomain,
-      vercelDomain: vercelResult.domain,
-      dnsRecords: vercelResult.dnsRecords,
-      message: 'Domain added successfully. Please configure your DNS records.',
-      verified: vercelResult.domain?.verified || false
-    })
   } catch (error) {
     console.error('Error adding domain:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
