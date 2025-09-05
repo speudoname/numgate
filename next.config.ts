@@ -1,19 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      // Page Builder app - proxy through internal API route
-      {
-        source: '/page-builder',
-        destination: '/api/proxy/page-builder',
-      },
-      {
-        source: '/page-builder/:path*',
-        destination: '/api/proxy/page-builder/:path*',
-      },
-    ]
-  },
+  // Removed rewrites - letting route handlers handle directly
+  // The /page-builder/[...path]/route.ts will handle all /page-builder/* requests
 };
 
 export default nextConfig;
