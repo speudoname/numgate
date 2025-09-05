@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/page-builder/:path*",
+      "destination": "https://pagenumgate.vercel.app/:path*"
+    },
+    {
+      "source": "/email/:path*",
+      "destination": "https://emailapp.vercel.app/:path*"
+    },
+    {
+      "source": "/webinar/:path*",
+      "destination": "https://webinarapp.vercel.app/:path*"
+    }
+  ]
+}
