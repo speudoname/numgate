@@ -18,6 +18,7 @@ interface TenantData {
     email: string
     name: string
     role: string
+    is_super_admin?: boolean
   }
   apps: Array<{
     id: string
@@ -136,6 +137,14 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">{data.user.email}</span>
+              {data.user.is_super_admin && (
+                <Link
+                  href="/super-admin"
+                  className="px-4 py-2 border-2 border-red-600 text-sm font-medium rounded-md bg-red-600 text-white hover:bg-red-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+                >
+                  🛡️ Super Admin
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 border-2 border-black text-sm font-medium rounded-md bg-white hover:bg-gray-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"

@@ -160,7 +160,8 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       email: user.email,
       role: userRole,
-      permissions: user.permissions || []
+      permissions: user.permissions || [],
+      is_super_admin: user.is_super_admin || false
     })
 
     // Determine redirect URL

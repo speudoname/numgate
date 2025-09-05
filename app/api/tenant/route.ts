@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        is_super_admin: user.is_super_admin || false
       },
       apps: apps || []
     })

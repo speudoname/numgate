@@ -155,7 +155,8 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       email: user.email,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      is_super_admin: user.is_super_admin || false
     })
 
     // Create response with data

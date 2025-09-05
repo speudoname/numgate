@@ -163,6 +163,36 @@ export async function middleware(request: NextRequest) {
     })
   }
 
+  // Check if it's a super admin route
+  if (pathname.startsWith('/super-admin')) {
+    const authCookie = request.cookies.get('auth-token')
+    const token = authCookie?.value
+    
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    
+    const payload = await verifyToken(token)
+    
+    if (!payload || !payload.is_super_admin) {
+      // Not a super admin, redirect to regular dashboard
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+    
+    // Add headers and continue
+    requestHeaders.set('x-user-id', payload.user_id)
+    requestHeaders.set('x-user-email', payload.email)
+    requestHeaders.set('x-user-role', payload.role)
+    requestHeaders.set('x-is-super-admin', 'true')
+    requestHeaders.set('x-tenant-id', payload.tenant_id)
+    
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  }
+
   // Get token from cookie
   const authCookie = request.cookies.get('auth-token')
   const token = authCookie?.value

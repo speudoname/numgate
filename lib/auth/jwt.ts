@@ -10,6 +10,7 @@ export interface JWTPayload {
   email: string
   role: string
   permissions: string[]
+  is_super_admin?: boolean // Add super admin flag
   [key: string]: any // Add index signature for jose compatibility
 }
 
