@@ -8,24 +8,11 @@
 -- Drop the restrictive policy
 DROP POLICY IF EXISTS "Users can view their tenants" ON tenants;
 
--- Create separate policies for different access levels
--- Public can read basic tenant info (for subdomain resolution)
-CREATE POLICY "Public can read tenant slugs" ON tenants
+-- Create a single policy for SELECT that allows both public and authenticated access
+-- Public can read basic info, authenticated users can read their tenants
+CREATE POLICY "Public and users can read tenants" ON tenants
   FOR SELECT
-  USING (true)  -- Allow public read of slug, id, name only
-  WITH CHECK (false); -- But no public writes
-
--- Users can view full tenant details only for their tenants
-CREATE POLICY "Users view full tenant details" ON tenants
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM tenant_users 
-      WHERE tenant_users.tenant_id = tenants.id 
-      AND tenant_users.user_id = public.get_auth_user_id()
-    )
-    OR public.get_auth_user_id() IS NULL  -- Allow public read of basic info
-  );
+  USING (true);  -- Allow all reads - this is safe because sensitive data is in other tables
 
 -- ============================================
 -- 2. Fix custom_domains public lookup
