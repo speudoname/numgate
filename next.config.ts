@@ -3,14 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
-      // Page Builder app - proxy everything under /page-builder
+      // Page Builder app - proxy through internal API route
       {
         source: '/page-builder',
-        destination: 'https://pagenumgate.vercel.app/page-builder',
+        destination: '/api/proxy/page-builder',
       },
       {
         source: '/page-builder/:path*',
-        destination: 'https://pagenumgate.vercel.app/page-builder/:path*',
+        destination: '/api/proxy/page-builder/:path*',
       },
     ]
   },

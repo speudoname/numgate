@@ -7,12 +7,43 @@ import { APP_ROUTES, getAppFromPath } from '@/lib/proxy-config'
 const publicRoutes = ['/', '/login', '/register', '/forgot-password']
 
 // API routes that don't require authentication
-const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/test']
+const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/test', '/api/proxy']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Check if this is an app route that needs proxying
+  // Allow proxy API routes to pass through without authentication
+  if (pathname.startsWith('/api/proxy/')) {
+    // For proxy routes, we still need authentication but we handle it in the proxy itself
+    // Get token from cookie if available and add to headers
+    const authCookie = request.cookies.get('auth-token')
+    const token = authCookie?.value
+    
+    if (token) {
+      // Verify token
+      const payload = await verifyToken(token)
+      if (payload) {
+        // Add headers for downstream app
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-tenant-id', payload.tenant_id)
+        requestHeaders.set('x-user-id', payload.user_id)
+        requestHeaders.set('x-user-email', payload.email)
+        requestHeaders.set('x-user-role', payload.role)
+        requestHeaders.set('x-auth-token', token)
+        
+        return NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      }
+    }
+    
+    // Even if no auth, let proxy handle it (it will return appropriate errors)
+    return NextResponse.next()
+  }
+
+  // Check if this is an app route that needs proxying (for direct access, not through proxy)
   const app = getAppFromPath(pathname)
   if (app) {
     // Get token from cookie for authentication
