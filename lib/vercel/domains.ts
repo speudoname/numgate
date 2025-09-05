@@ -32,6 +32,7 @@ interface DNSRecord {
   name: string
   value: string
   ttl?: number
+  purpose?: 'verification' | 'routing'
 }
 
 class VercelDomainsService {
@@ -88,7 +89,7 @@ class VercelDomainsService {
         const error = await response.json()
         
         // Domain might already exist, try to get its status
-        if (error.error?.code === 'domain_already_exists') {
+        if (error.error?.code === 'domain_already_exists' || error.error?.message?.includes('already')) {
           return await this.getDomainStatus(domain)
         }
         
@@ -100,8 +101,8 @@ class VercelDomainsService {
 
       const data: VercelDomainResponse = await response.json()
       
-      // Get DNS records needed
-      const dnsRecords = this.generateDNSRecords(domain, data)
+      // Get DNS records needed (including verification)
+      const dnsRecords = this.extractDNSRecords(domain, data)
       
       return {
         success: true,
@@ -139,10 +140,11 @@ class VercelDomainsService {
       )
 
       if (!domainResponse.ok) {
+        const error = await domainResponse.json()
         return {
           success: false,
           verified: false,
-          error: 'Domain not found'
+          error: error.error?.message || 'Domain not found'
         }
       }
 
@@ -160,9 +162,9 @@ class VercelDomainsService {
         ? await configResponse.json() 
         : { misconfigured: true }
 
-      // Generate DNS records if not verified
+      // Extract DNS records including verification if not verified
       const dnsRecords = !domainData.verified 
-        ? this.generateDNSRecords(domain, domainData)
+        ? this.extractDNSRecords(domain, domainData)
         : undefined
 
       return {
@@ -190,9 +192,10 @@ class VercelDomainsService {
     verified: boolean
     message?: string
     error?: string
+    dnsRecords?: DNSRecord[]
   }> {
     try {
-      // Trigger verification by checking status
+      // First, get current status
       const status = await this.getDomainStatus(domain)
       
       if (status.verified) {
@@ -203,7 +206,7 @@ class VercelDomainsService {
         }
       }
 
-      // Re-add domain to trigger fresh verification
+      // Try to trigger verification by re-adding (this often triggers a recheck)
       const response = await fetch(
         `${this.baseUrl}/v10/projects/${this.projectId}/domains${this.getTeamQuery()}`,
         {
@@ -223,16 +226,22 @@ class VercelDomainsService {
         }
       }
 
-      // Check verification array for specific issues
-      const verificationIssues = data.verification || []
-      const txtRecord = verificationIssues.find((v: any) => v.type === 'TXT')
+      // Extract DNS records including verification
+      const dnsRecords = this.extractDNSRecords(domain, data)
+
+      // Build helpful message based on verification requirements
+      const verificationRecords = dnsRecords.filter(r => r.purpose === 'verification')
+      let message = 'Domain verification pending. Please add the following DNS records:\n'
       
+      verificationRecords.forEach(record => {
+        message += `\n${record.type} record: ${record.name} → ${record.value}`
+      })
+
       return {
         success: false,
         verified: false,
-        message: txtRecord 
-          ? `Please add TXT record: ${txtRecord.domain} = ${txtRecord.value}`
-          : 'Domain verification pending. Please check your DNS settings.'
+        message,
+        dnsRecords
       }
     } catch (error) {
       console.error('Error verifying domain:', error)
@@ -247,10 +256,7 @@ class VercelDomainsService {
   /**
    * Remove domain from project
    */
-  async removeDomain(domain: string): Promise<{
-    success: boolean
-    error?: string
-  }> {
+  async removeDomain(domain: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await fetch(
         `${this.baseUrl}/v9/projects/${this.projectId}/domains/${domain}${this.getTeamQuery()}`,
@@ -279,50 +285,64 @@ class VercelDomainsService {
   }
 
   /**
-   * Generate DNS records for domain setup
+   * Extract DNS records from Vercel response
+   * Includes both verification records and routing records
    */
-  private generateDNSRecords(domain: string, vercelData?: VercelDomainResponse): DNSRecord[] {
+  private extractDNSRecords(domain: string, vercelData?: VercelDomainResponse): DNSRecord[] {
     const records: DNSRecord[] = []
     const apexDomain = domain.replace(/^www\./, '')
     const isApex = domain === apexDomain
+    
+    // Add verification records if present
+    if (vercelData?.verification && vercelData.verification.length > 0) {
+      vercelData.verification.forEach(v => {
+        // Format the name correctly for display
+        let recordName = v.domain
+        if (recordName === domain) {
+          recordName = '@'
+        } else if (recordName.startsWith('_vercel.')) {
+          recordName = '_vercel'
+        }
 
+        records.push({
+          type: v.type as DNSRecord['type'],
+          name: recordName,
+          value: v.value,
+          ttl: 300,
+          purpose: 'verification'
+        })
+      })
+    }
+
+    // Add routing records
     if (isApex) {
       // For apex domain (example.com)
       records.push({
         type: 'A',
         name: '@',
         value: '76.76.21.21',
-        ttl: 300
+        ttl: 300,
+        purpose: 'routing'
       })
       
-      // Also add www subdomain
+      // Also suggest www subdomain
       records.push({
         type: 'CNAME',
         name: 'www',
         value: 'cname.vercel-dns.com',
-        ttl: 300
+        ttl: 300,
+        purpose: 'routing'
       })
     } else {
       // For subdomain (www.example.com, app.example.com, etc.)
+      const subdomain = domain.split('.')[0]
       records.push({
         type: 'CNAME',
-        name: domain.split('.')[0], // Get subdomain part
+        name: subdomain === 'www' ? 'www' : subdomain,
         value: 'cname.vercel-dns.com',
-        ttl: 300
+        ttl: 300,
+        purpose: 'routing'
       })
-    }
-
-    // Add verification TXT if needed
-    if (vercelData?.verification) {
-      const txtVerification = vercelData.verification.find(v => v.type === 'TXT')
-      if (txtVerification) {
-        records.push({
-          type: 'TXT',
-          name: '_vercel',
-          value: txtVerification.value,
-          ttl: 300
-        })
-      }
     }
 
     return records

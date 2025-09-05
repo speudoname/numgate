@@ -1,10 +1,18 @@
 'use client'
 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 interface DNSRecord {
   type: string
   name: string
   value: string
   ttl?: number
+  purpose?: 'verification' | 'routing'
 }
 
 interface DNSInstructionsProps {
@@ -21,6 +29,10 @@ export default function DNSInstructions({ domain, dnsRecords, provider }: DNSIns
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
+
+  // Separate verification and routing records
+  const verificationRecords = dnsRecords.filter(r => r.purpose === 'verification')
+  const routingRecords = dnsRecords.filter(r => r.purpose === 'routing')
 
   const getProviderInstructions = () => {
     const providers = {
@@ -72,105 +84,168 @@ export default function DNSInstructions({ domain, dnsRecords, provider }: DNSIns
 
   const instructions = getProviderInstructions()
 
+  const RecordTable = ({ records, title }: { records: DNSRecord[], title: string }) => (
+    <div className="space-y-2">
+      <h4 className="font-semibold text-sm">{title}</h4>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Type</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Value</TableHead>
+            <TableHead>TTL</TableHead>
+            <TableHead></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {records.map((record, index) => (
+            <TableRow key={index}>
+              <TableCell>
+                <Badge variant="outline">{record.type}</Badge>
+              </TableCell>
+              <TableCell className="font-mono text-sm">{record.name}</TableCell>
+              <TableCell>
+                <code className="text-xs bg-secondary px-2 py-1 rounded break-all">
+                  {record.value}
+                </code>
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {record.ttl || 'Auto'}
+              </TableCell>
+              <TableCell>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => copyToClipboard(record.value)}
+                >
+                  Copy
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+
   return (
     <div className="space-y-6">
-      {/* DNS Records Table */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">DNS Records to Add</h3>
-        <div className="bg-gray-50 rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Type</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Name</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Value</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">TTL</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {dnsRecords.map((record, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <span className="inline-block px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded">
-                      {record.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm">{record.name}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <code className="text-sm bg-gray-100 px-2 py-1 rounded break-all">
-                        {record.value}
-                      </code>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {record.ttl || 'Auto'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => copyToClipboard(record.value)}
-                      className="text-blue-600 hover:text-blue-700 text-sm"
-                    >
-                      Copy
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Priority Alert for Verification */}
+      {verificationRecords.length > 0 && (
+        <Alert>
+          <AlertDescription className="font-medium">
+            ⚠️ <strong>Step 1: Verification Required</strong> - Add the verification records first to prove domain ownership
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* DNS Records Tabs */}
+      <Tabs defaultValue={verificationRecords.length > 0 ? "verification" : "routing"}>
+        <TabsList className="grid w-full grid-cols-2">
+          {verificationRecords.length > 0 && (
+            <TabsTrigger value="verification">
+              Verification Records ({verificationRecords.length})
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="routing">
+            Routing Records ({routingRecords.length})
+          </TabsTrigger>
+        </TabsList>
+        
+        {verificationRecords.length > 0 && (
+          <TabsContent value="verification" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Domain Verification</CardTitle>
+                <CardDescription>
+                  Add these records to verify domain ownership with Vercel
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RecordTable records={verificationRecords} title="Required for Verification" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        <TabsContent value="routing" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Domain Routing</CardTitle>
+              <CardDescription>
+                Add these records to route traffic to your Vercel deployment
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RecordTable records={routingRecords} title="Required for Routing" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Step by Step Instructions */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">Setup Instructions for {instructions.name}</h3>
-        <ol className="space-y-2">
-          {instructions.steps.map((step, index) => (
-            <li key={index} className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">
-                {index + 1}
-              </span>
-              <span className="text-sm text-gray-700">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Setup Instructions for {instructions.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ol className="space-y-2">
+            {instructions.steps.map((step, index) => (
+              <li key={index} className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
+                  {index + 1}
+                </span>
+                <span className="text-sm">{step}</span>
+              </li>
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
 
       {/* Provider Links */}
-      <div className="bg-blue-50 rounded-lg p-4">
-        <h4 className="font-semibold text-sm mb-2">Quick Links to DNS Providers</h4>
-        <div className="flex flex-wrap gap-3">
-          <a href="https://dcc.godaddy.com" target="_blank" rel="noopener noreferrer" 
-            className="text-blue-600 hover:underline text-sm">
-            GoDaddy DNS →
-          </a>
-          <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-sm">
-            Cloudflare →
-          </a>
-          <a href="https://ap.www.namecheap.com" target="_blank" rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-sm">
-            Namecheap →
-          </a>
-          <a href="https://cp.dnsmadeeasy.com" target="_blank" rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-sm">
-            DNS Made Easy →
-          </a>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Links to DNS Providers</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://dcc.godaddy.com" target="_blank" rel="noopener noreferrer">
+                GoDaddy DNS →
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer">
+                Cloudflare →
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://ap.www.namecheap.com" target="_blank" rel="noopener noreferrer">
+                Namecheap →
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://cp.dnsmadeeasy.com" target="_blank" rel="noopener noreferrer">
+                DNS Made Easy →
+              </a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Important Notes */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <h4 className="font-semibold text-sm mb-2 text-yellow-800">Important Notes</h4>
-        <ul className="space-y-1 text-sm text-yellow-700">
-          <li>• DNS changes typically take 5-30 minutes to propagate</li>
-          <li>• If using Cloudflare, set proxy status to "DNS only" (gray cloud)</li>
-          <li>• Keep existing records unless they conflict with these</li>
-          <li>• For apex domains (example.com), use A record pointing to 76.76.21.21</li>
-          <li>• For subdomains (www.example.com), use CNAME pointing to cname.vercel-dns.com</li>
-        </ul>
-      </div>
+      <Alert>
+        <AlertDescription>
+          <strong>Important Notes:</strong>
+          <ul className="mt-2 space-y-1 text-sm list-disc list-inside">
+            <li>DNS changes typically take 5-30 minutes to propagate</li>
+            <li>If using Cloudflare, set proxy status to "DNS only" (gray cloud)</li>
+            <li>Keep existing records unless they conflict with these</li>
+            <li>For apex domains (example.com), use A record pointing to 76.76.21.21</li>
+            <li>For subdomains (www.example.com), use CNAME pointing to cname.vercel-dns.com</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
     </div>
   )
 }
