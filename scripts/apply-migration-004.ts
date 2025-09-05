@@ -41,9 +41,17 @@ async function applyMigration() {
       
       // For SELECT statements, use a different approach
       if (statement.trim().toUpperCase().startsWith('SELECT')) {
-        const { data, error } = await supabase.rpc('exec_sql', { 
-          sql_query: statement 
-        }).catch(() => ({ data: null, error: 'RPC not available - statement might have succeeded' }))
+        let data, error
+        try {
+          const result = await supabase.rpc('exec_sql', { 
+            sql_query: statement 
+          })
+          data = result.data
+          error = result.error
+        } catch (e) {
+          data = null
+          error = 'RPC not available - statement might have succeeded'
+        }
         
         if (error && error !== 'RPC not available - statement might have succeeded') {
           console.log(`  ⚠️  Warning: ${error}`)

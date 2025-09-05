@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const isPlatform = isPlatformDomain(host)
 
     // Get user's tenant memberships
-    const { data: memberships, error: membershipError } = await supabaseAdmin
+    let { data: memberships, error: membershipError } = await supabaseAdmin
       .from('tenant_users')
       .select(`
         *,
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
           .eq('user_id', user.id)
         
         if (retryMemberships && retryMemberships.length > 0) {
-          memberships.push(...retryMemberships)
+          memberships = retryMemberships
         }
       } else {
         return NextResponse.json(
@@ -96,6 +96,13 @@ export async function POST(request: NextRequest) {
 
     let targetTenant = null
     let userRole = 'member'
+
+    if (!memberships || memberships.length === 0) {
+      return NextResponse.json(
+        { error: 'No tenant access found' },
+        { status: 403 }
+      )
+    }
 
     if (isPlatform) {
       // Platform login - user can belong to multiple tenants
