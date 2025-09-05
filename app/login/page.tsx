@@ -51,8 +51,6 @@ export default function LoginPage() {
         return
       }
 
-      // Login successful, redirecting...
-      
       // Check if we need to redirect to a custom domain
       if (data.redirectUrl) {
         if (data.redirectUrl.startsWith('http')) {

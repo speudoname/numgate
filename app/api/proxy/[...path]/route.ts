@@ -76,7 +76,7 @@ async function handleProxyRequest(
       targetEndpoint += url.search
     }
     
-    console.log(`Proxying ${method} ${request.url} -> ${targetEndpoint}`)
+    // Proxy request to target endpoint
 
     // Prepare headers for the proxy request
     const proxyHeaders = new Headers()

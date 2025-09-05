@@ -69,7 +69,7 @@ async function handleProxyRequest(
       targetEndpoint += url.search
     }
     
-    console.log(`Page builder proxy: ${method} ${request.url} -> ${targetEndpoint}`)
+    // Proxy request to page builder path
 
     // Prepare headers for the proxy request
     const proxyHeaders = new Headers()
