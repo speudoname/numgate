@@ -79,6 +79,9 @@ export default function DashboardPage() {
       
       // Navigate to page builder route
       window.location.href = '/page-builder'
+    } else if (appName === 'contacts') {
+      // Navigate to ContactGate
+      window.location.href = '/contacts'
     }
   }
 
@@ -104,6 +107,12 @@ export default function DashboardPage() {
       description: 'Create and manage landing pages',
       icon: '📄',
       color: 'bg-blue-400'
+    },
+    contacts: {
+      title: 'Contact Management',
+      description: 'Manage leads and customers',
+      icon: '👥',
+      color: 'bg-indigo-400'
     },
     email: {
       title: 'Email Marketing',
