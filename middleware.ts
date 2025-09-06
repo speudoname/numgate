@@ -11,7 +11,7 @@ const publicRoutes = ['/', '/login', '/register', '/forgot-password']
 const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/test', '/api/proxy']
 
 // Routes that are handled by route handlers (not pages)
-const routeHandlerPaths = ['/page-builder']
+const routeHandlerPaths = ['/page-builder', '/contacts']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
