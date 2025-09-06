@@ -34,6 +34,11 @@ export default function DomainsPage() {
   const [selectedDomain, setSelectedDomain] = useState<CustomDomain | null>(null)
   const [dnsRecords, setDnsRecords] = useState<DNSRecord[]>([])
   const [showInstructions, setShowInstructions] = useState(false)
+  const [loadingDns, setLoadingDns] = useState<string | null>(null)
+  const [showClaimFlow, setShowClaimFlow] = useState(false)
+  const [domainOwnership, setDomainOwnership] = useState<any>(null)
+  const [claimData, setClaimData] = useState<any>(null)
+  const [verifyingClaim, setVerifyingClaim] = useState(false)
 
   useEffect(() => {
     fetchDomains()
@@ -81,14 +86,50 @@ export default function DomainsPage() {
     }
   }
 
+  const checkDomainOwnership = async (domain: string) => {
+    try {
+      const response = await fetch('/api/domains/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ domain })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to check domain ownership')
+      }
+      
+      return data
+    } catch (error) {
+      console.error('Domain ownership check failed:', error)
+      return { available: true, domain }
+    }
+  }
+
   const handleAddDomain = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     setSuccess('')
     setDnsRecords([])
+    setShowClaimFlow(false)
 
     try {
+      // First, check if domain already exists
+      const ownershipData = await checkDomainOwnership(newDomain)
+      
+      if (!ownershipData.available) {
+        // Domain is owned by someone else - show claim flow
+        setDomainOwnership(ownershipData)
+        setShowClaimFlow(true)
+        setLoading(false)
+        return
+      }
+
+      // Domain is available - proceed with normal add
       const response = await fetch('/api/domains', {
         method: 'POST',
         headers: {
@@ -119,6 +160,41 @@ export default function DomainsPage() {
       setError('Network error. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleViewDns = async (domainId: string, domain: CustomDomain) => {
+    setLoadingDns(domainId)
+    setError('')
+    setSuccess('')
+    
+    try {
+      const response = await fetch(`/api/domains/${domainId}/status`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.domainMissing) {
+          setError(data.message || 'Domain not found in Vercel')
+          // Update local state to show missing status
+          setDomains(prev => prev.map(d => 
+            d.id === domain.id ? { ...d, vercelStatus: 'missing' } : d
+          ))
+        } else {
+          // Successfully got DNS records, show them
+          setSelectedDomain(data.domain || domain)
+          setDnsRecords(data.dnsRecords || [])
+          setShowInstructions(true)
+          // Scroll to instructions
+          setTimeout(() => {
+            document.querySelector('.dns-instructions')?.scrollIntoView({ behavior: 'smooth' })
+          }, 100)
+        }
+      } else {
+        setError('Failed to fetch DNS records')
+      }
+    } catch (err) {
+      setError('Failed to fetch domain details')
+    } finally {
+      setLoadingDns(null)
     }
   }
 
@@ -180,6 +256,110 @@ export default function DomainsPage() {
     }
   }
 
+  const handleStartClaim = async (domain: string) => {
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/domains/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ domain, action: 'start' })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to start claim process')
+        return
+      }
+
+      setClaimData(data)
+      setSuccess('Claim process started! Please add the TXT record to verify ownership.')
+    } catch (err) {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyClaim = async (domain: string) => {
+    setVerifyingClaim(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/domains/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ domain, action: 'verify' })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Verification failed')
+        return
+      }
+
+      if (data.verified && data.transferred) {
+        setSuccess('Domain successfully claimed and transferred to your account!')
+        setShowClaimFlow(false)
+        setClaimData(null)
+        setDomainOwnership(null)
+        setNewDomain('')
+        fetchDomains()
+      } else {
+        setError(data.error || 'Verification failed. Please check your DNS records.')
+      }
+    } catch (err) {
+      setError('Network error. Please try again.')
+    } finally {
+      setVerifyingClaim(false)
+    }
+  }
+
+  const handleDeleteDomain = async (domainId: string, domainName: string) => {
+    if (!confirm(`Are you sure you want to delete ${domainName}?`)) {
+      return
+    }
+
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch(`/api/domains/${domainId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Handle specific error codes with helpful messages
+        if (data.code === 'DOMAIN_PARKED') {
+          setError(`${data.error} The domain appears to be parked with a domain parking service.`)
+        } else if (data.code === 'DOMAIN_IN_USE') {
+          setError(`${data.error} Please check your Vercel dashboard.`)
+        } else if (data.code === 'VERCEL_ERROR') {
+          setError(`${data.error} You may need to manually remove it from Vercel.`)
+        } else {
+          setError(data.error || 'Failed to delete domain')
+        }
+        return
+      }
+
+      setSuccess('Domain deleted successfully')
+      fetchDomains()
+    } catch (err) {
+      setError('Network error. Please try again.')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background py-12 px-4">
       <div className="max-w-6xl mx-auto">
@@ -234,6 +414,110 @@ export default function DomainsPage() {
             </div>
           </form>
         </div>
+
+        {/* Domain Claim Flow */}
+        {showClaimFlow && domainOwnership && (
+          <div className="bg-yellow-50 rounded-base border-2 border-yellow-600 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 mb-8">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold text-yellow-900">
+                Domain Already Exists
+              </h2>
+              <button
+                onClick={() => {
+                  setShowClaimFlow(false)
+                  setDomainOwnership(null)
+                  setClaimData(null)
+                }}
+                className="text-2xl font-bold hover:opacity-70 transition-opacity"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-yellow-100 border-2 border-yellow-600 rounded-base">
+                <p className="font-bold text-yellow-900 mb-2">
+                  Domain <span className="font-mono">{domainOwnership.domain}</span> is currently owned by:
+                </p>
+                <p className="text-yellow-900">
+                  <strong>Tenant:</strong> {domainOwnership.owner.tenant_name} ({domainOwnership.owner.tenant_slug})
+                </p>
+                <p className="text-yellow-900">
+                  <strong>Added:</strong> {new Date(domainOwnership.owner.added_date).toLocaleDateString()}
+                </p>
+                <p className="text-yellow-900">
+                  <strong>Status:</strong> {domainOwnership.owner.verified ? 'Verified' : 'Pending verification'}
+                </p>
+              </div>
+
+              {!claimData ? (
+                <div>
+                  <p className="text-yellow-900 font-medium mb-4">
+                    If you own this domain, you can claim it by proving ownership through DNS verification.
+                  </p>
+                  <button
+                    onClick={() => handleStartClaim(domainOwnership.domain)}
+                    disabled={loading}
+                    className="px-6 py-2 bg-yellow-600 text-white border-2 border-yellow-700 rounded-base font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                  >
+                    {loading ? 'Starting Claim...' : 'Claim This Domain'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border-2 border-blue-600 rounded-base">
+                    <h3 className="font-bold text-blue-900 mb-3">
+                      Step 1: Add TXT Record
+                    </h3>
+                    <p className="text-blue-900 mb-3">
+                      Add the following TXT record to your domain's DNS settings:
+                    </p>
+                    <div className="bg-white p-3 rounded border border-blue-300 font-mono text-sm">
+                      <div><strong>Name:</strong> {claimData.txt_record_name}</div>
+                      <div><strong>Value:</strong> {claimData.txt_record_value}</div>
+                      <div><strong>TTL:</strong> 300 (or minimum allowed)</div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-blue-50 border-2 border-blue-600 rounded-base">
+                    <h3 className="font-bold text-blue-900 mb-3">
+                      Step 2: Verify Ownership
+                    </h3>
+                    <p className="text-blue-900 mb-3">
+                      After adding the TXT record, wait 5-30 minutes for DNS propagation, then click verify.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleVerifyClaim(domainOwnership.domain)}
+                        disabled={verifyingClaim}
+                        className="px-6 py-2 bg-blue-600 text-white border-2 border-blue-700 rounded-base font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                      >
+                        {verifyingClaim ? 'Verifying...' : 'Verify & Claim'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowClaimFlow(false)
+                          setDomainOwnership(null)
+                          setClaimData(null)
+                        }}
+                        className="px-6 py-2 bg-gray-500 text-white border-2 border-gray-600 rounded-base font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-yellow-900 font-medium">
+                    <p><strong>Expires:</strong> {new Date(claimData.expires_at).toLocaleString()}</p>
+                    <p className="mt-2">
+                      This claim will expire in 24 hours. If not completed, you'll need to start the process again.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* DNS Instructions */}
         {showInstructions && (
@@ -354,6 +638,21 @@ export default function DomainsPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      {/* View DNS button - Available for ALL domains */}
+                      <button
+                        onClick={() => handleViewDns(domain.id, domain)}
+                        disabled={loadingDns === domain.id}
+                        className="px-4 py-2 font-bold bg-secondary-background border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                      >
+                        {loadingDns === domain.id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-main"></div>
+                            Loading...
+                          </div>
+                        ) : 'View DNS'}
+                      </button>
+                      
+                      {/* Domain-specific actions based on status */}
                       {domain.vercelStatus === 'missing' ? (
                         <>
                           <button
@@ -387,73 +686,23 @@ export default function DomainsPage() {
                             Re-add
                           </button>
                           <button
-                            onClick={async () => {
-                              if (confirm(`Are you sure you want to delete ${domain.domain}?`)) {
-                                try {
-                                  const response = await fetch(`/api/domains/${domain.id}`, {
-                                    method: 'DELETE'
-                                  })
-                                  if (response.ok) {
-                                    setSuccess('Domain removed from your list')
-                                    fetchDomains()
-                                  } else {
-                                    setError('Failed to delete domain')
-                                  }
-                                } catch (err) {
-                                  setError('Failed to delete domain')
-                                }
-                              }
-                            }}
+                            onClick={() => handleDeleteDomain(domain.id, domain.domain)}
                             className="px-4 py-2 font-bold bg-red-500 text-white border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
                           >
                             Delete
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            onClick={async () => {
-                              setError('')
-                              setSuccess('')
-                              try {
-                                const response = await fetch(`/api/domains/${domain.id}/status`)
-                                if (response.ok) {
-                                  const data = await response.json()
-                                  if (data.domainMissing) {
-                                    setError(data.message || 'Domain not found in Vercel')
-                                    // Update local state to show missing status
-                                    setDomains(prev => prev.map(d => 
-                                      d.id === domain.id ? { ...d, vercelStatus: 'missing' } : d
-                                    ))
-                                  } else {
-                                    // Successfully got DNS records, show them
-                                    setSelectedDomain(data.domain || domain)
-                                    setDnsRecords(data.dnsRecords || [])
-                                    setShowInstructions(true)
-                                    // Scroll to instructions
-                                    setTimeout(() => {
-                                      document.querySelector('.dns-instructions')?.scrollIntoView({ behavior: 'smooth' })
-                                    }, 100)
-                                  }
-                                }
-                              } catch (err) {
-                                // Error fetching domain details
-                                setError('Failed to fetch domain details')
-                              }
-                            }}
-                            className="px-4 py-2 font-bold bg-secondary-background border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
-                          >
-                            View DNS
-                          </button>
-                          <button
-                            onClick={() => handleVerifyDomain(domain.id, domain.domain)}
-                            disabled={verifying === domain.id}
-                            className="px-4 py-2 font-bold bg-main text-main-foreground border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-                          >
-                            {verifying === domain.id ? 'Checking...' : 'Verify'}
-                          </button>
-                        </>
+                        <button
+                          onClick={() => handleVerifyDomain(domain.id, domain.domain)}
+                          disabled={verifying === domain.id}
+                          className="px-4 py-2 font-bold bg-main text-main-foreground border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                        >
+                          {verifying === domain.id ? 'Checking...' : 'Verify'}
+                        </button>
                       )}
+                      
+                      {/* Make Primary button for verified domains */}
                       {domain.verified && !domain.is_primary && (
                         <button
                           onClick={async () => {
@@ -476,31 +725,14 @@ export default function DomainsPage() {
                           Make Primary
                         </button>
                       )}
-                      {domain.verified && (
+                      
+                      {/* Delete button for all domains (except missing ones which already have delete) */}
+                      {domain.vercelStatus !== 'missing' && (
                         <button
-                          onClick={async () => {
-                            setError('')
-                            setSuccess('')
-                            try {
-                              const response = await fetch(`/api/domains/${domain.id}/status`)
-                              if (response.ok) {
-                                const data = await response.json()
-                                setSelectedDomain(data.domain || domain)
-                                setDnsRecords(data.dnsRecords || [])
-                                setShowInstructions(true)
-                                // Scroll to instructions
-                                setTimeout(() => {
-                                  document.querySelector('.dns-instructions')?.scrollIntoView({ behavior: 'smooth' })
-                                }, 100)
-                              }
-                            } catch (err) {
-                              // Error fetching domain details
-                              setError('Failed to fetch domain details')
-                            }
-                          }}
-                          className="px-4 py-2 font-bold bg-secondary-background border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
+                          onClick={() => handleDeleteDomain(domain.id, domain.domain)}
+                          className="px-4 py-2 font-bold bg-red-500 text-white border-2 border-border rounded-base shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none"
                         >
-                          View DNS
+                          Delete
                         </button>
                       )}
                     </div>

@@ -73,11 +73,45 @@ export async function DELETE(
       return NextResponse.json({ error: 'Domain not found' }, { status: 404 })
     }
 
-    // Try to remove from Vercel (ignore errors if domain doesn't exist there)
+    // Try to remove from Vercel with detailed error handling
     try {
-      await vercelDomains.removeDomain(domain.domain)
+      const removeResult = await vercelDomains.removeDomain(domain.domain)
+      if (!removeResult.success && removeResult.error) {
+        // Check for specific Vercel error patterns
+        const errorMessage = removeResult.error.toLowerCase()
+        
+        if (errorMessage.includes('parked') || errorMessage.includes('parking')) {
+          return NextResponse.json({ 
+            error: 'Domain is parked elsewhere. Please remove it from the parking service first, then try again.',
+            code: 'DOMAIN_PARKED'
+          }, { status: 409 })
+        }
+        
+        if (errorMessage.includes('in use') || errorMessage.includes('another project')) {
+          return NextResponse.json({ 
+            error: 'Domain is in use by another Vercel project. Please remove it from that project first.',
+            code: 'DOMAIN_IN_USE'
+          }, { status: 409 })
+        }
+        
+        if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
+          // Domain doesn't exist in Vercel - this is OK, continue with database removal
+          console.warn(`Domain ${domain.domain} not found in Vercel during deletion - continuing`)
+        } else {
+          // Other Vercel errors
+          return NextResponse.json({ 
+            error: `Failed to remove domain from Vercel: ${removeResult.error}`,
+            code: 'VERCEL_ERROR'
+          }, { status: 500 })
+        }
+      }
     } catch (vercelError) {
-      // Domain may not exist in Vercel - continuing with database removal
+      // Network or unexpected errors
+      console.error('Unexpected error removing domain from Vercel:', vercelError)
+      return NextResponse.json({ 
+        error: 'Failed to communicate with domain service. Please try again.',
+        code: 'NETWORK_ERROR'
+      }, { status: 500 })
     }
 
     // Delete from our database
