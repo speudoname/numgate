@@ -78,7 +78,9 @@ export default function DashboardPage() {
       }
       
       // Navigate to page builder route
-      window.location.href = '/page-builder'
+      // Check if we're on localhost for development
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      window.location.href = isLocalhost ? '/api/proxy/page-builder' : '/page-builder'
     } else if (appName === 'contacts') {
       // Navigate to ContactGate
       window.location.href = '/contacts'

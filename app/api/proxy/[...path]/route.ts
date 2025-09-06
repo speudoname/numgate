@@ -63,11 +63,11 @@ async function handleProxyRequest(
     let targetEndpoint: string
     
     if (remainingPath.length === 0) {
-      // Root path: /api/proxy/page-builder -> http://localhost:3002/page-builder
-      targetEndpoint = `${targetUrl}/page-builder`
+      // Root path: /api/proxy/page-builder -> http://localhost:3001/
+      targetEndpoint = `${targetUrl}/`
     } else {
-      // Sub path: /api/proxy/page-builder/some/path -> http://localhost:3002/page-builder/some/path
-      targetEndpoint = `${targetUrl}/page-builder/${remainingPath.join('/')}`
+      // Sub path: /api/proxy/page-builder/some/path -> http://localhost:3001/some/path
+      targetEndpoint = `${targetUrl}/${remainingPath.join('/')}`
     }
     
     // Add query parameters if they exist
@@ -161,14 +161,14 @@ async function handleProxyRequest(
       // Replace relative URLs in HTML to point back to the proxy
       // This is a simple replacement - you might need more sophisticated URL rewriting
       html = html.replace(
-        /href="\/page-builder/g,
-        `href="/api/proxy/page-builder`
+        /href="\//g,
+        `href="/api/proxy/page-builder/`
       ).replace(
-        /src="\/page-builder/g,
-        `src="/api/proxy/page-builder`
+        /src="\//g,
+        `src="/api/proxy/page-builder/`
       ).replace(
-        /action="\/page-builder/g,
-        `action="/api/proxy/page-builder`
+        /action="\//g,
+        `action="/api/proxy/page-builder/`
       )
 
       return new NextResponse(html, {

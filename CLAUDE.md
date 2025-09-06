@@ -137,6 +137,13 @@ export async function GET() {
 }
 ```
 
+## Deployment Strategy - CRITICAL RULE
+- **NEVER deploy directly to Vercel using `vercel` command**
+- **ALWAYS push to GitHub first** - GitHub is connected to Vercel for auto-deployment
+- **Workflow**: Make changes → Build locally → Test → Commit → Push to GitHub → Vercel auto-deploys
+- **This ensures**: Version control, consistent deployment pipeline, and automatic deployments
+- **Build locally first**: Always run `npm run build` before pushing to catch errors early
+
 ## UI/UX Design Standards - STRICT REQUIREMENTS
      - **USE NEOBRUTALISM.DEV EXCLUSIVELY**: For ALL UI components, use ONLY components from NeoBrutalism.dev
      - **NO CUSTOM COMPONENTS**: Do NOT create custom UI components or invent new designs
