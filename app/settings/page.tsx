@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Alert } from '@/components/ui/alert'
+import { timezones, languages } from '@/lib/constants/timezones'
 
 interface SettingsData {
   tenant: {
@@ -303,15 +304,11 @@ export default function SettingsPage() {
                         onChange={(e) => handleInputChange('timezone', e.target.value)}
                         className="mt-2 w-full px-3 py-2 border-2 border-black rounded-md focus:border-blue-500 focus:outline-none bg-white"
                       >
-                        <option value="UTC">UTC</option>
-                        <option value="America/New_York">Eastern Time (ET)</option>
-                        <option value="America/Chicago">Central Time (CT)</option>
-                        <option value="America/Denver">Mountain Time (MT)</option>
-                        <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                        <option value="Europe/London">London (GMT)</option>
-                        <option value="Europe/Berlin">Berlin (CET)</option>
-                        <option value="Asia/Tokyo">Tokyo (JST)</option>
-                        <option value="Asia/Dubai">Dubai (GST)</option>
+                        {timezones.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -323,12 +320,11 @@ export default function SettingsPage() {
                         onChange={(e) => handleInputChange('language', e.target.value)}
                         className="mt-2 w-full px-3 py-2 border-2 border-black rounded-md focus:border-blue-500 focus:outline-none bg-white"
                       >
-                        <option value="en">English</option>
-                        <option value="ka">Georgian</option>
-                        <option value="es">Spanish</option>
-                        <option value="fr">French</option>
-                        <option value="de">German</option>
-                        <option value="ru">Russian</option>
+                        {languages.map((lang) => (
+                          <option key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
