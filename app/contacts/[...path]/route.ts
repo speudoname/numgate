@@ -52,9 +52,9 @@ async function handleProxyRequest(
     // Get the target URL from environment or default
     const targetUrl = process.env.CONTACTGATE_URL || process.env.NEXT_PUBLIC_CONTACTGATE_URL || 'http://localhost:3001'
     
-    // Build the full path
+    // Build the full path - ContactGate has basePath /contacts in production
     const path = pathSegments.join('/')
-    const targetEndpoint = `${targetUrl}/${path}`
+    const targetEndpoint = `${targetUrl}/contacts/${path}`
     
     // Add query parameters if they exist
     const url = new URL(request.url)
