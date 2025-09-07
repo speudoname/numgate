@@ -4,6 +4,7 @@ import { hashPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
 import { isPlatformDomain } from '@/lib/tenant/lookup'
 import { TenantPagesService } from '@/lib/blob/tenant-pages'
+import { createPostmarkServersForTenant } from '@/lib/postmark/server-manager'
 import type { Tenant, User } from '@/types/database'
 
 export async function POST(request: NextRequest) {
@@ -151,6 +152,19 @@ export async function POST(request: NextRequest) {
     } catch (blobError) {
       console.error('Failed to create default pages:', blobError)
       // Don't fail registration if blob creation fails
+    }
+
+    // Create Postmark servers for the new tenant
+    try {
+      const serverCodes = await createPostmarkServersForTenant(tenant.id, tenant.name, tenant.slug)
+      if (serverCodes) {
+        console.log(`Created Postmark servers for ${tenant.name}:`, serverCodes)
+      } else {
+        console.warn(`Failed to create Postmark servers for ${tenant.name}`)
+      }
+    } catch (postmarkError) {
+      console.error('Failed to create Postmark servers:', postmarkError)
+      // Don't fail registration if Postmark setup fails
     }
 
     // Generate JWT token
