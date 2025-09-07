@@ -58,17 +58,10 @@ export async function GET(request: NextRequest) {
           })
         }
 
-        // Get postmark_id from postmark_settings
-        const { data: postmarkSettings } = await supabaseAdmin
-          .schema('contacts')
-          .from('postmark_settings')
-          .select('postmark_id')
-          .eq('tenant_id', tenant.id)
-          .single()
-
+        // postmark_id is already in the tenant record from the main query
         return {
           ...tenant,
-          postmark_id: postmarkSettings?.postmark_id || null,
+          postmark_id: tenant.postmark_id || null,  // Use the postmark_id directly from tenant
           users_count: usersCount || 0,
           domains_count: domainsCount || 0,
           apps
