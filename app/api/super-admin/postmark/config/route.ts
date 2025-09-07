@@ -27,19 +27,31 @@ export async function GET(request: NextRequest) {
         .eq('tenant_id', tenantId)
         .maybeSingle()
       
+      // Also get default config for fallback sender details
+      const defaultResult = await supabaseAdmin
+        .schema('contacts')
+        .from('shared_postmark_config')
+        .select('*')
+        .maybeSingle()
+      
       if (tenantResult.data) {
-        data = tenantResult.data
+        // Merge with defaults for sender details if not set
+        data = {
+          ...tenantResult.data,
+          // Use tenant's sender details if set, otherwise fall back to defaults
+          default_from_email: tenantResult.data.default_from_email || defaultResult.data?.default_from_email || 'noreply@komunate.com',
+          default_from_name: tenantResult.data.default_from_name || defaultResult.data?.default_from_name || 'Komunate Platform',
+          default_reply_to: tenantResult.data.default_reply_to || defaultResult.data?.default_reply_to || 'noreply@komunate.com'
+        }
       } else if (!tenantResult.error || tenantResult.error.code === 'PGRST116') {
-        // If no tenant-specific config exists (no error or not found error), return empty config
-        // This allows the UI to show the "Create servers" option
-        data = null
+        // If no tenant-specific config exists, use defaults for sender details
+        data = {
+          default_from_email: defaultResult.data?.default_from_email || 'noreply@komunate.com',
+          default_from_name: defaultResult.data?.default_from_name || 'Komunate Platform',
+          default_reply_to: defaultResult.data?.default_reply_to || 'noreply@komunate.com'
+        }
       } else {
-        // For other errors, try to load default as fallback
-        const defaultResult = await supabaseAdmin
-          .schema('contacts')
-          .from('shared_postmark_config')
-          .select('*')
-          .maybeSingle()
+        // For other errors, use default config
         data = defaultResult.data
         error = defaultResult.error
       }

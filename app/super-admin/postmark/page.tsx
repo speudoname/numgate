@@ -73,6 +73,11 @@ export default function PostmarkConfigPage() {
   const [showDNSRecords, setShowDNSRecords] = useState(false)
   const [dnsRecords, setDnsRecords] = useState<any>(null)
   const [tenantDomains, setTenantDomains] = useState<string[]>([])
+  const [defaultSenderConfig, setDefaultSenderConfig] = useState<{
+    default_from_email?: string
+    default_from_name?: string
+    default_reply_to?: string
+  }>({})
   const [config, setConfig] = useState<SharedConfig>({
     transactional_stream_id: 'outbound',
     marketing_stream_id: 'broadcasts',
@@ -1269,35 +1274,49 @@ export default function PostmarkConfigPage() {
                 <Settings className="h-4 w-4" />
                 Default Sender Details
               </CardTitle>
+              {selectedTenantId !== 'default' && (
+                <CardDescription>
+                  Customize sender details for this tenant. Leave blank to use default values.
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label>From Email</Label>
                 <Input
                   type="email"
-                  value={config.default_from_email}
+                  value={config.default_from_email || ''}
                   onChange={(e) => setConfig({ ...config, default_from_email: e.target.value })}
-                  placeholder="share@share.komunate.com"
+                  placeholder={selectedTenantId !== 'default' ? "Leave blank to use default" : "share@share.komunate.com"}
                 />
+                {selectedTenantId !== 'default' && !config.default_from_email && (
+                  <p className="text-xs text-gray-500 mt-1">Using default: share@share.komunate.com</p>
+                )}
               </div>
 
               <div>
                 <Label>From Name</Label>
                 <Input
-                  value={config.default_from_name}
+                  value={config.default_from_name || ''}
                   onChange={(e) => setConfig({ ...config, default_from_name: e.target.value })}
-                  placeholder="Komunate Platform"
+                  placeholder={selectedTenantId !== 'default' ? "Leave blank to use default" : "Komunate Platform"}
                 />
+                {selectedTenantId !== 'default' && !config.default_from_name && (
+                  <p className="text-xs text-gray-500 mt-1">Using default: Komunate Platform</p>
+                )}
               </div>
 
               <div>
                 <Label>Reply-To Email</Label>
                 <Input
                   type="email"
-                  value={config.default_reply_to}
+                  value={config.default_reply_to || ''}
                   onChange={(e) => setConfig({ ...config, default_reply_to: e.target.value })}
-                  placeholder="noreply@komunate.com"
+                  placeholder={selectedTenantId !== 'default' ? "Leave blank to use default" : "noreply@komunate.com"}
                 />
+                {selectedTenantId !== 'default' && !config.default_reply_to && (
+                  <p className="text-xs text-gray-500 mt-1">Using default: noreply@komunate.com</p>
+                )}
               </div>
             </CardContent>
           </Card>
