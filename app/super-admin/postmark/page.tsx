@@ -45,11 +45,33 @@ interface Tenant {
   postmark_id?: string | null
 }
 
+interface Signature {
+  ID: number
+  Name: string
+  EmailAddress?: string
+  Type: 'Domain' | 'Sender'
+  Domain?: string
+  Confirmed?: boolean
+  SPFVerified?: boolean
+  DKIMVerified?: boolean
+  WeakDKIM?: boolean
+  ReturnPathDomainVerified?: boolean
+  DKIMPendingHost?: string
+  DKIMPendingTextValue?: string
+  ReturnPathDomain?: string
+  ReturnPathDomainCNAMEValue?: string
+}
+
 export default function PostmarkConfigPage() {
   const [selectedTenantId, setSelectedTenantId] = useState<string>('default')
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [servers, setServers] = useState<PostmarkServer[]>([])
   const [streams, setStreams] = useState<Record<number, MessageStream[]>>({})
+  const [signatures, setSignatures] = useState<{ domains: Signature[], senders: Signature[] }>({ domains: [], senders: [] })
+  const [selectedSignature, setSelectedSignature] = useState<string>('')
+  const [creatingSignature, setCreatingSignature] = useState(false)
+  const [showDNSRecords, setShowDNSRecords] = useState(false)
+  const [dnsRecords, setDnsRecords] = useState<any>(null)
   const [config, setConfig] = useState<SharedConfig>({
     transactional_stream_id: 'outbound',
     marketing_stream_id: 'broadcasts',
@@ -69,6 +91,7 @@ export default function PostmarkConfigPage() {
   useEffect(() => {
     fetchTenants()
     fetchServersAndConfig()
+    fetchSignatures()
   }, [])
 
   useEffect(() => {
@@ -142,6 +165,19 @@ export default function PostmarkConfigPage() {
       setError('Failed to load configuration')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchSignatures = async () => {
+    try {
+      const response = await fetch('/api/super-admin/postmark/signatures')
+      
+      if (response.ok) {
+        const data = await response.json()
+        setSignatures(data.signatures || { domains: [], senders: [] })
+      }
+    } catch (err) {
+      console.error('Failed to fetch signatures:', err)
     }
   }
 
@@ -331,6 +367,90 @@ export default function PostmarkConfigPage() {
       setError(err.message || 'Failed to create servers')
     } finally {
       setCreatingServers(false)
+    }
+  }
+
+  const handleCreateSignature = async (type: 'domain' | 'sender') => {
+    setCreatingSignature(true)
+    setError('')
+    setSuccess('')
+    setShowDNSRecords(false)
+
+    try {
+      let requestBody: any = { type }
+      
+      if (type === 'domain') {
+        const domainName = prompt('Enter the domain name (e.g., example.com):')
+        if (!domainName) {
+          setCreatingSignature(false)
+          return
+        }
+        requestBody.name = domainName
+      } else {
+        const fromEmail = prompt('Enter the sender email address:')
+        if (!fromEmail) {
+          setCreatingSignature(false)
+          return
+        }
+        const fromName = prompt('Enter the sender name (optional):') || ''
+        requestBody.fromEmail = fromEmail
+        requestBody.name = fromName
+        requestBody.replyToEmail = fromEmail
+      }
+
+      const response = await fetch('/api/super-admin/postmark/signatures', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        
+        if (data.type === 'domain' && data.dnsRecords) {
+          setDnsRecords(data.dnsRecords)
+          setShowDNSRecords(true)
+          setSuccess(`Domain signature created! Please add the DNS records shown below.`)
+        } else if (data.type === 'sender') {
+          setSuccess(data.message || 'Sender signature created successfully!')
+        }
+        
+        // Refresh signatures list
+        await fetchSignatures()
+        setTimeout(() => setSuccess(''), 5000)
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to create signature')
+      }
+    } catch (err: any) {
+      console.error('Create signature error:', err)
+      setError(err.message || 'Failed to create signature')
+    } finally {
+      setCreatingSignature(false)
+    }
+  }
+
+  const handleSignatureChange = (signatureId: string) => {
+    if (signatureId === '__create_domain__') {
+      handleCreateSignature('domain')
+      return
+    }
+    if (signatureId === '__create_sender__') {
+      handleCreateSignature('sender')
+      return
+    }
+    
+    setSelectedSignature(signatureId)
+    // Save selected signature to config
+    const signature = [...signatures.domains, ...signatures.senders].find(s => s.ID.toString() === signatureId)
+    if (signature) {
+      if (signature.Type === 'Domain') {
+        setConfig(prev => ({ ...prev, default_from_email: `noreply@${signature.Name}` }))
+      } else if (signature.EmailAddress) {
+        setConfig(prev => ({ ...prev, default_from_email: signature.EmailAddress }))
+      }
     }
   }
 
@@ -815,6 +935,189 @@ export default function PostmarkConfigPage() {
                     )
                   })()}
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Signature Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email Signatures (Sender Domains)
+              </CardTitle>
+              <CardDescription>
+                Manage verified sending domains and email addresses for better deliverability
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Select Signature</Label>
+                <Select
+                  value={selectedSignature}
+                  onValueChange={handleSignatureChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select or create signature..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Create options */}
+                    <SelectItem value="__create_domain__" className="font-semibold text-green-600">
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        <span>Create Domain Signature</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="__create_sender__" className="font-semibold text-blue-600">
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        <span>Create Sender Signature</span>
+                      </div>
+                    </SelectItem>
+                    
+                    {/* Domain signatures */}
+                    {signatures.domains.length > 0 && (
+                      <>
+                        <div className="my-1 border-t" />
+                        <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
+                          Domain Signatures
+                        </div>
+                        {signatures.domains.map(sig => (
+                          <SelectItem key={`domain-${sig.ID}`} value={sig.ID.toString()}>
+                            <div className="flex items-center gap-2">
+                              <span>{sig.Name}</span>
+                              {sig.SPFVerified && sig.DKIMVerified ? (
+                                <Check className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <AlertCircle className="h-3 w-3 text-yellow-600" />
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    
+                    {/* Sender signatures */}
+                    {signatures.senders.length > 0 && (
+                      <>
+                        <div className="my-1 border-t" />
+                        <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
+                          Sender Signatures
+                        </div>
+                        {signatures.senders.map(sig => (
+                          <SelectItem key={`sender-${sig.ID}`} value={sig.ID.toString()}>
+                            <div className="flex items-center gap-2">
+                              <span>{sig.EmailAddress || sig.Name}</span>
+                              {sig.Confirmed ? (
+                                <Check className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <AlertCircle className="h-3 w-3 text-yellow-600" />
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Show selected signature details */}
+              {selectedSignature && (() => {
+                const signature = [...signatures.domains, ...signatures.senders].find(s => s.ID.toString() === selectedSignature)
+                if (!signature) return null
+                
+                return (
+                  <div className="border rounded-lg p-4 bg-gray-50">
+                    <h4 className="font-medium mb-3">Signature Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Type:</span>
+                        <span className="font-medium">{signature.Type}</span>
+                      </div>
+                      {signature.Type === 'Domain' ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Domain:</span>
+                            <span className="font-medium">{signature.Name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">SPF:</span>
+                            <span className={signature.SPFVerified ? 'text-green-600' : 'text-yellow-600'}>
+                              {signature.SPFVerified ? '✓ Verified' : '⚠ Not verified'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">DKIM:</span>
+                            <span className={signature.DKIMVerified ? 'text-green-600' : 'text-yellow-600'}>
+                              {signature.DKIMVerified ? '✓ Verified' : '⚠ Not verified'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Return Path:</span>
+                            <span className={signature.ReturnPathDomainVerified ? 'text-green-600' : 'text-yellow-600'}>
+                              {signature.ReturnPathDomainVerified ? '✓ Verified' : '⚠ Not verified'}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Email:</span>
+                            <span className="font-medium">{signature.EmailAddress}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Status:</span>
+                            <span className={signature.Confirmed ? 'text-green-600' : 'text-yellow-600'}>
+                              {signature.Confirmed ? '✓ Confirmed' : '⚠ Pending confirmation'}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* DNS Records Display */}
+              {showDNSRecords && dnsRecords && (
+                <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                  <h4 className="font-medium mb-3 text-blue-900">DNS Records to Add</h4>
+                  <div className="space-y-3">
+                    {dnsRecords.spf && (
+                      <div className="bg-white p-3 rounded border">
+                        <p className="text-sm font-medium mb-1">SPF Record</p>
+                        <p className="text-xs text-gray-600">Type: {dnsRecords.spf.type}</p>
+                        <p className="text-xs text-gray-600">Host: {dnsRecords.spf.host}</p>
+                        <p className="text-xs font-mono bg-gray-100 p-2 mt-1 break-all">{dnsRecords.spf.value}</p>
+                      </div>
+                    )}
+                    {dnsRecords.dkim && (
+                      <div className="bg-white p-3 rounded border">
+                        <p className="text-sm font-medium mb-1">DKIM Record</p>
+                        <p className="text-xs text-gray-600">Type: {dnsRecords.dkim.type}</p>
+                        <p className="text-xs text-gray-600">Host: {dnsRecords.dkim.host}</p>
+                        <p className="text-xs font-mono bg-gray-100 p-2 mt-1 break-all">{dnsRecords.dkim.value}</p>
+                      </div>
+                    )}
+                    {dnsRecords.returnPath && (
+                      <div className="bg-white p-3 rounded border">
+                        <p className="text-sm font-medium mb-1">Return Path Record</p>
+                        <p className="text-xs text-gray-600">Type: {dnsRecords.returnPath.type}</p>
+                        <p className="text-xs text-gray-600">Host: {dnsRecords.returnPath.host}</p>
+                        <p className="text-xs font-mono bg-gray-100 p-2 mt-1 break-all">{dnsRecords.returnPath.value}</p>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3"
+                    onClick={() => setShowDNSRecords(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
