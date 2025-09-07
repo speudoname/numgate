@@ -31,7 +31,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Step 1: Detect if this is platform or tenant domain
-  const isPlatform = isPlatformDomain(hostname)
+  // Pass the pathname to enable dual-mode for komunate.com
+  const isPlatform = isPlatformDomain(hostname, pathname)
   const requestHeaders = new Headers(request.headers)
   
   if (isPlatform) {

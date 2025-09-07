@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if we're on platform or tenant domain
-    const isPlatform = isPlatformDomain(host)
+    // Pass the pathname to enable dual-mode for komunate.com
+    const isPlatform = isPlatformDomain(host, '/api/auth/login')
 
     // Process the optimized query results
     const memberships = userData.tenant_users || []

@@ -121,31 +121,41 @@ export async function getTenantByDomain(hostname: string | null): Promise<any> {
 
 /**
  * Check if a domain is the platform domain
- * Now that komunate.com is a regular tenant, only localhost is platform
+ * komunate.com acts as platform ONLY for auth routes
  */
-export function isPlatformDomain(hostname: string | null): boolean {
+export function isPlatformDomain(hostname: string | null, pathname?: string): boolean {
   if (!hostname) return false
   
   const domain = hostname.toLowerCase()
   
-  // Platform domains - only development now
-  // komunate.com is now a regular tenant with custom domain
-  const platformDomains = [
+  // Always platform domains (development)
+  const alwaysPlatformDomains = [
     'localhost',
     'localhost:3000',
     'localhost:3007',
-    // Keep numgate.vercel.app as platform for now (deployment URL)
     'numgate.vercel.app'
   ]
   
-  // Check for exact match, not just includes
-  // This prevents slug.komunate.com from being treated as platform
-  return platformDomains.some(pd => {
-    // Remove port for comparison if needed
+  // Check if it's always a platform domain
+  const isAlwaysPlatform = alwaysPlatformDomains.some(pd => {
     const domainWithoutPort = domain.replace(/:\d+$/, '')
     const pdWithoutPort = pd.replace(/:\d+$/, '')
     return domainWithoutPort === pdWithoutPort
   })
+  
+  if (isAlwaysPlatform) return true
+  
+  // komunate.com is platform ONLY for auth routes
+  // This allows multi-tenant login while keeping dashboard working
+  const isKomunateDomain = domain === 'komunate.com' || domain === 'www.komunate.com'
+  const isAuthRoute = pathname && (
+    pathname.startsWith('/api/auth/login') || 
+    pathname.startsWith('/api/auth/register') ||
+    pathname === '/login' ||
+    pathname === '/register'
+  )
+  
+  return isKomunateDomain && isAuthRoute
 }
 
 /**

@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a platform domain
     // Registration is only allowed on platform domains
-    if (!isPlatformDomain(host)) {
+    // Pass the pathname to enable dual-mode for komunate.com
+    if (!isPlatformDomain(host, '/api/auth/register')) {
       return NextResponse.json(
         { error: 'Registration is not available on tenant domains. Please visit komunate.com to create an account.' },
         { status: 403 }
