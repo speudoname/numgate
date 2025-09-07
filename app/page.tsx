@@ -25,7 +25,7 @@ export default async function HomePage() {
       const pageResponse = await TenantPagesService.getPage(
         komunateTenant,
         'index.html',
-        BlobFolder.HOMEPAGE
+        BlobFolder.ROOT
       )
       
       if (pageResponse) {
@@ -69,7 +69,7 @@ export default async function HomePage() {
   const pageResponse = await TenantPagesService.getPage(
     tenant.id,
     'index.html',
-    BlobFolder.HOMEPAGE
+    BlobFolder.ROOT
   )
   
   if (pageResponse) {

@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch all servers from Postmark
-    const response = await fetch('https://api.postmarkapp.com/servers', {
+    // Fetch all servers from Postmark (with required offset parameter)
+    const response = await fetch('https://api.postmarkapp.com/servers?offset=0&count=100', {
       method: 'GET',
       headers: {
         'Accept': 'application/json',

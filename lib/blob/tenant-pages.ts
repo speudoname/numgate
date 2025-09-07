@@ -7,16 +7,16 @@ import { put, del, list, head } from '@vercel/blob'
 
 /**
  * Folder structure for tenant content:
- * - {tenant_id}/homepage/ - Main homepage and site-wide pages
- * - {tenant_id}/landing-pages/ - Marketing and campaign landing pages
+ * - {tenant_id}/ - Main pages (index.html, about.html, etc.)
  * - {tenant_id}/media/ - Images, videos, and other media assets
  * - {tenant_id}/versions/ - Versioned content (future implementation)
+ * - {tenant_id}/unpublished/ - Draft pages not yet published
  */
 export enum BlobFolder {
-  HOMEPAGE = 'homepage',
-  LANDING_PAGES = 'landing-pages',
+  ROOT = '', // Pages go directly in root
   MEDIA = 'media',
-  VERSIONS = 'versions'
+  VERSIONS = 'versions',
+  UNPUBLISHED = 'unpublished'
 }
 
 export class TenantPagesService {
@@ -109,9 +109,9 @@ export class TenantPagesService {
     pagePath: string, 
     content: string,
     contentType: string = 'text/html',
-    folder: BlobFolder = BlobFolder.HOMEPAGE
+    folder: BlobFolder = BlobFolder.ROOT
   ): Promise<{ url: string; pathname: string }> {
-    const blobPath = `${tenantId}/${folder}/${pagePath}`
+    const blobPath = folder ? `${tenantId}/${folder}/${pagePath}` : `${tenantId}/${pagePath}`
     
     const blob = await put(blobPath, content, {
       access: 'public',
@@ -132,18 +132,18 @@ export class TenantPagesService {
   static async getPage(
     tenantId: string,
     pagePath: string,
-    folder: BlobFolder = BlobFolder.HOMEPAGE
+    folder: BlobFolder = BlobFolder.ROOT
   ): Promise<Response | null> {
-    // First try the new folder structure
-    const blobPath = `${tenantId}/${folder}/${pagePath}`
+    // Build path based on folder
+    const blobPath = folder ? `${tenantId}/${folder}/${pagePath}` : `${tenantId}/${pagePath}`
     
     try {
       // Try to get the blob metadata first
       let metadata = await head(blobPath)
       
-      // If not found in new structure, try old 'pages' folder for backward compatibility
+      // If not found, try old 'homepage' folder for backward compatibility
       if (!metadata) {
-        const oldPath = `${tenantId}/pages/${pagePath}`
+        const oldPath = `${tenantId}/homepage/${pagePath}`
         try {
           metadata = await head(oldPath)
         } catch {
@@ -168,17 +168,17 @@ export class TenantPagesService {
   static async deletePage(
     tenantId: string,
     pagePath: string,
-    folder: BlobFolder = BlobFolder.HOMEPAGE
+    folder: BlobFolder = BlobFolder.ROOT
   ): Promise<void> {
-    const blobPath = `${tenantId}/${folder}/${pagePath}`
+    const blobPath = folder ? `${tenantId}/${folder}/${pagePath}` : `${tenantId}/${pagePath}`
     await del(blobPath)
   }
 
   /**
    * List all pages for a tenant from the specified folder
    */
-  static async listPages(tenantId: string, folder: BlobFolder = BlobFolder.HOMEPAGE) {
-    const prefix = `${tenantId}/${folder}/`
+  static async listPages(tenantId: string, folder: BlobFolder = BlobFolder.ROOT) {
+    const prefix = folder ? `${tenantId}/${folder}/` : `${tenantId}/`
     const { blobs } = await list({ prefix })
     
     return blobs.map(blob => ({
@@ -207,12 +207,12 @@ export class TenantPagesService {
    * Create default pages for a new tenant
    */
   static async createDefaultPages(tenantId: string, tenantName: string, tenantSlug: string) {
-    // Create default index page in homepage folder
+    // Create default index page directly in root
     const indexContent = this.generateDefaultIndexPage(tenantName, tenantSlug)
-    await this.storePage(tenantId, 'index.html', indexContent, 'text/html', BlobFolder.HOMEPAGE)
+    await this.storePage(tenantId, 'index.html', indexContent, 'text/html', BlobFolder.ROOT)
     
     // Could add more default pages here (404, about, etc.)
-    console.log(`Created default pages for tenant ${tenantId} in homepage folder`)
+    console.log(`Created default pages for tenant ${tenantId} in root`)
   }
 
   /**

@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch current shared config
+    // Fetch current shared config from contacts schema
     const { data, error } = await supabaseAdmin
+      .schema('contacts')
       .from('shared_postmark_config')
       .select('*')
       .single()
@@ -50,8 +51,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     
-    // Check if config exists
+    // Check if config exists in contacts schema
     const { data: existing } = await supabaseAdmin
+      .schema('contacts')
       .from('shared_postmark_config')
       .select('id')
       .single()
@@ -59,8 +61,9 @@ export async function POST(request: NextRequest) {
     let result
     
     if (existing) {
-      // Update existing config
+      // Update existing config in contacts schema
       result = await supabaseAdmin
+        .schema('contacts')
         .from('shared_postmark_config')
         .update({
           transactional_server_token: body.transactional_server_token,
@@ -76,8 +79,9 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', existing.id)
     } else {
-      // Create new config
+      // Create new config in contacts schema
       result = await supabaseAdmin
+        .schema('contacts')
         .from('shared_postmark_config')
         .insert({
           transactional_server_token: body.transactional_server_token,
