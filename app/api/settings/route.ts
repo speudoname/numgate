@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withTenantAuth, AuthContext } from '@/lib/middleware/auth'
 
 // GET - Get tenant settings and subscription info
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, auth: AuthContext) => {
   try {
-    const tenantId = request.headers.get('x-tenant-id')
-    
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { tenantId } = auth
 
     // Get tenant with plan details
     const { data: tenant, error: tenantError } = await supabaseAdmin
@@ -80,16 +77,12 @@ export async function GET(request: NextRequest) {
     console.error('Settings fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // PATCH - Update tenant settings
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, auth: AuthContext) => {
   try {
-    const tenantId = request.headers.get('x-tenant-id')
-    
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { tenantId } = auth
 
     const body = await request.json()
     const { name, email, settings } = body
@@ -137,4 +130,4 @@ export async function PATCH(request: NextRequest) {
     console.error('Settings update error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

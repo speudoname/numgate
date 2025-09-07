@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/auth/jwt'
+import { getCachedToken } from '@/lib/auth/token-cache'
 import { APP_ROUTES, getAppFromPath } from '@/lib/proxy-config'
 import { getTenantByDomain, isPlatformDomain } from '@/lib/tenant/lookup'
 
@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
       const token = authCookie?.value
       
       if (token) {
-        const payload = await verifyToken(token)
+        const payload = await getCachedToken(token)
         if (payload) {
           const requestHeaders = new Headers(request.headers)
           requestHeaders.set('x-tenant-id', payload.tenant_id)
@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
     
     if (token) {
       // Verify token
-      const payload = await verifyToken(token)
+      const payload = await getCachedToken(token)
       if (payload) {
         // Add headers for downstream app
         const requestHeaders = new Headers(request.headers)
@@ -129,7 +129,7 @@ export async function middleware(request: NextRequest) {
     }
     
     // Verify token
-    const payload = await verifyToken(token)
+    const payload = await getCachedToken(token)
     if (!payload) {
       const response = NextResponse.redirect(new URL('/login', request.url))
       response.cookies.delete('auth-token')
@@ -176,7 +176,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
     
-    const payload = await verifyToken(token)
+    const payload = await getCachedToken(token)
     
     // Check both: is_super_admin AND logged into komunate tenant
     if (!payload || !payload.is_super_admin || payload.tenant_slug !== 'komunate') {
@@ -215,7 +215,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verify token
-  const payload = await verifyToken(token)
+  const payload = await getCachedToken(token)
   
   if (!payload) {
     // Invalid token, clear cookie and redirect

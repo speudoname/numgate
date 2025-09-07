@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { createServerClient } from '@/lib/supabase/client'
 import { verifyPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
 import { isPlatformDomain } from '@/lib/tenant/lookup'
@@ -23,15 +22,33 @@ export async function POST(request: NextRequest) {
     
     const { email, password } = validation.data
 
-    // Find user by email - This MUST use service key because we need password_hash
-    // which should never be exposed via RLS
-    const { data: user, error: userError } = await supabaseAdmin
+    // OPTIMIZED: Single query to get user with tenant memberships and primary domain
+    // This reduces 3 separate queries to 1 optimized query
+    const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
-      .select('*')
+      .select(`
+        *,
+        tenant_users!inner (
+          *,
+          tenants!inner (
+            id,
+            name,
+            slug,
+            email,
+            subscription_plan,
+            settings,
+            custom_domains!inner (
+              domain
+            )
+          )
+        )
+      `)
       .eq('email', email)
+      .eq('tenant_users.tenants.custom_domains.verified', true)
+      .eq('tenant_users.tenants.custom_domains.is_primary', true)
       .single()
 
-    if (userError || !user) {
+    if (userError || !userData) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
@@ -39,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValidPassword = await verifyPassword(password, user.password_hash)
+    const isValidPassword = await verifyPassword(password, userData.password_hash)
     
     if (!isValidPassword) {
       return NextResponse.json(
@@ -51,48 +68,51 @@ export async function POST(request: NextRequest) {
     // Check if we're on platform or tenant domain
     const isPlatform = isPlatformDomain(host)
 
-    // Get user's tenant memberships - Still needs service key for cross-tenant query
-    let { data: memberships, error: membershipError } = await supabaseAdmin
-      .from('tenant_users')
-      .select(`
-        *,
-        tenants (
-          id,
-          name,
-          slug,
-          email,
-          subscription_plan,
-          settings
-        )
-      `)
-      .eq('user_id', user.id)
-
-    if (membershipError || !memberships || memberships.length === 0) {
-      // User has no tenant memberships - handle legacy users
-      // Check if they have a tenant_id (old system)
-      if (user.tenant_id) {
+    // Process the optimized query results
+    const memberships = userData.tenant_users || []
+    
+    if (memberships.length === 0) {
+      // Handle legacy users with tenant_id
+      if (userData.tenant_id) {
         // Migrate this user to new system
         await supabaseAdmin
           .from('tenant_users')
           .insert({
-            tenant_id: user.tenant_id,
-            user_id: user.id,
-            role: user.role || 'admin'
+            tenant_id: userData.tenant_id,
+            user_id: userData.id,
+            role: userData.role || 'admin'
           })
-        
-        // Retry getting memberships
-        const { data: retryMemberships } = await supabaseAdmin
-          .from('tenant_users')
+
+        // Get tenant details for legacy user
+        const { data: legacyTenant } = await supabaseAdmin
+          .from('tenants')
           .select(`
-            *,
-            tenants (*)
+            id,
+            name,
+            slug,
+            email,
+            subscription_plan,
+            settings,
+            custom_domains!inner (
+              domain
+            )
           `)
-          .eq('user_id', user.id)
-        
-        if (retryMemberships && retryMemberships.length > 0) {
-          memberships = retryMemberships
+          .eq('id', userData.tenant_id)
+          .eq('custom_domains.verified', true)
+          .eq('custom_domains.is_primary', true)
+          .single()
+
+        if (legacyTenant) {
+          memberships.push({
+            tenant_id: legacyTenant.id,
+            user_id: userData.id,
+            role: userData.role || 'admin',
+            tenants: legacyTenant
+          })
         }
-      } else {
+      }
+
+      if (memberships.length === 0) {
         return NextResponse.json(
           { error: 'No tenant access found' },
           { status: 403 }
@@ -100,42 +120,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let targetTenant = null
-    let userRole = 'member'
-
-    if (!memberships || memberships.length === 0) {
-      return NextResponse.json(
-        { error: 'No tenant access found' },
-        { status: 403 }
-      )
-    }
+    // Determine target tenant
+    let targetTenant: any = null
+    let userRole: string | null = null
 
     if (isPlatform) {
-      // Platform login - user can belong to multiple tenants
-      // For now, use their first tenant (later we can show a tenant selector)
-      targetTenant = memberships[0].tenants
-      userRole = memberships[0].role
+      // Platform mode - user can choose tenant
+      if (tenantIdFromHeader) {
+        // Specific tenant requested
+        targetTenant = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.tenants
+        userRole = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.role
+      } else {
+        // Default to first tenant
+        targetTenant = memberships[0]?.tenants
+        userRole = memberships[0]?.role
+      }
     } else {
-      // Tenant domain login - verify user belongs to THIS tenant
-      if (!tenantIdFromHeader) {
-        return NextResponse.json(
-          { error: 'Invalid tenant domain' },
-          { status: 403 }
-        )
-      }
-
-      // Find membership for this specific tenant
-      const membership = memberships.find(m => m.tenant_id === tenantIdFromHeader)
-      
-      if (!membership) {
-        return NextResponse.json(
-          { error: 'You do not have access to this organization' },
-          { status: 403 }
-        )
-      }
-
-      targetTenant = membership.tenants
-      userRole = membership.role
+      // Tenant mode - find matching tenant
+      targetTenant = memberships.find((m: any) => m.tenants.slug === host?.split('.')[0])?.tenants
+      userRole = memberships.find((m: any) => m.tenants.slug === host?.split('.')[0])?.role
     }
 
     if (!targetTenant) {
@@ -145,28 +148,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get primary verified custom domain for this tenant
-    const { data: primaryDomain } = await supabaseAdmin
-      .from('custom_domains')
-      .select('domain')
-      .eq('tenant_id', targetTenant.id)
-      .eq('verified', true)
-      .eq('is_primary', true)
-      .single()
+    // Get primary domain from the optimized query result
+    const primaryDomain = targetTenant.custom_domains?.[0]
 
     // Generate JWT token with tenant context
     const token = await generateToken({
       tenant_id: targetTenant.id,
-      tenant_slug: targetTenant.slug, // Add tenant slug for super admin check
-      user_id: user.id,
-      email: user.email,
-      role: userRole,
-      permissions: user.permissions || [],
-      is_super_admin: user.is_super_admin || false
+      tenant_slug: targetTenant.slug,
+      user_id: userData.id,
+      email: userData.email,
+      role: userRole || 'user',
+      permissions: userData.permissions || [],
+      is_super_admin: userData.is_super_admin || false
     })
 
     // Determine redirect URL
-    let redirectUrl = '/dashboard' // Default to dashboard on same domain
+    let redirectUrl = '/dashboard'
     
     if (isPlatform) {
       // Redirect from platform to tenant's domain
@@ -191,9 +188,9 @@ export async function POST(request: NextRequest) {
         slug: targetTenant.slug
       },
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
         role: userRole
       },
       token,
@@ -207,7 +204,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    // Error logged server-side only
+    console.error('Login error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
