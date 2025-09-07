@@ -12,12 +12,43 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch current shared config from contacts schema
-    const { data, error } = await supabaseAdmin
-      .schema('contacts')
-      .from('shared_postmark_config')
-      .select('*')
-      .single()
+    // Check if fetching for specific tenant
+    const searchParams = request.nextUrl.searchParams
+    const tenantId = searchParams.get('tenantId')
+    
+    let data, error
+    
+    if (tenantId && tenantId !== 'default') {
+      // First try to get tenant-specific config
+      const tenantResult = await supabaseAdmin
+        .schema('contacts')
+        .from('postmark_settings')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .single()
+      
+      if (tenantResult.data) {
+        data = tenantResult.data
+      } else {
+        // If no tenant-specific config, load default as starting point
+        const defaultResult = await supabaseAdmin
+          .schema('contacts')
+          .from('shared_postmark_config')
+          .select('*')
+          .single()
+        data = defaultResult.data
+      }
+      error = tenantResult.error && tenantResult.error.code !== 'PGRST116' ? tenantResult.error : null
+    } else {
+      // Fetch default shared config
+      const result = await supabaseAdmin
+        .schema('contacts')
+        .from('shared_postmark_config')
+        .select('*')
+        .single()
+      data = result.data
+      error = result.error
+    }
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error fetching config:', error)
@@ -49,51 +80,102 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const searchParams = request.nextUrl.searchParams
+    const tenantId = searchParams.get('tenantId')
     const body = await request.json()
     
-    // Check if config exists in contacts schema
-    const { data: existing } = await supabaseAdmin
-      .schema('contacts')
-      .from('shared_postmark_config')
-      .select('id')
-      .single()
-
     let result
     
-    if (existing) {
-      // Update existing config in contacts schema
-      result = await supabaseAdmin
+    if (tenantId && tenantId !== 'default') {
+      // Save tenant-specific config in postmark_settings table
+      const { data: existing } = await supabaseAdmin
         .schema('contacts')
-        .from('shared_postmark_config')
-        .update({
-          transactional_server_token: body.transactional_server_token,
-          transactional_server_id: body.transactional_server_id,
-          transactional_stream_id: body.transactional_stream_id,
-          marketing_server_token: body.marketing_server_token,
-          marketing_server_id: body.marketing_server_id,
-          marketing_stream_id: body.marketing_stream_id,
-          default_from_email: body.default_from_email,
-          default_from_name: body.default_from_name,
-          default_reply_to: body.default_reply_to,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existing.id)
+        .from('postmark_settings')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .single()
+      
+      if (existing) {
+        // Update existing tenant config
+        result = await supabaseAdmin
+          .schema('contacts')
+          .from('postmark_settings')
+          .update({
+            server_token: body.transactional_server_token,
+            server_id: body.transactional_server_id,
+            server_mode: 'dedicated',
+            transactional_stream_id: body.transactional_stream_id,
+            marketing_stream_id: body.marketing_stream_id,
+            marketing_server_token: body.marketing_server_token,
+            marketing_server_id: body.marketing_server_id,
+            default_from_email: body.default_from_email,
+            default_from_name: body.default_from_name,
+            default_reply_to: body.default_reply_to,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id)
+      } else {
+        // Create new tenant config
+        result = await supabaseAdmin
+          .schema('contacts')
+          .from('postmark_settings')
+          .insert({
+            tenant_id: tenantId,
+            server_token: body.transactional_server_token,
+            server_id: body.transactional_server_id,
+            server_mode: 'dedicated',
+            transactional_stream_id: body.transactional_stream_id,
+            marketing_stream_id: body.marketing_stream_id,
+            marketing_server_token: body.marketing_server_token,
+            marketing_server_id: body.marketing_server_id,
+            default_from_email: body.default_from_email,
+            default_from_name: body.default_from_name,
+            default_reply_to: body.default_reply_to
+          })
+      }
     } else {
-      // Create new config in contacts schema
-      result = await supabaseAdmin
+      // Save default config in shared_postmark_config table
+      const { data: existing } = await supabaseAdmin
         .schema('contacts')
         .from('shared_postmark_config')
-        .insert({
-          transactional_server_token: body.transactional_server_token,
-          transactional_server_id: body.transactional_server_id,
-          transactional_stream_id: body.transactional_stream_id,
-          marketing_server_token: body.marketing_server_token,
-          marketing_server_id: body.marketing_server_id,
-          marketing_stream_id: body.marketing_stream_id,
-          default_from_email: body.default_from_email,
-          default_from_name: body.default_from_name,
-          default_reply_to: body.default_reply_to
-        })
+        .select('id')
+        .single()
+
+      if (existing) {
+        // Update existing default config
+        result = await supabaseAdmin
+          .schema('contacts')
+          .from('shared_postmark_config')
+          .update({
+            transactional_server_token: body.transactional_server_token,
+            transactional_server_id: body.transactional_server_id,
+            transactional_stream_id: body.transactional_stream_id,
+            marketing_server_token: body.marketing_server_token,
+            marketing_server_id: body.marketing_server_id,
+            marketing_stream_id: body.marketing_stream_id,
+            default_from_email: body.default_from_email,
+            default_from_name: body.default_from_name,
+            default_reply_to: body.default_reply_to,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id)
+      } else {
+        // Create new default config
+        result = await supabaseAdmin
+          .schema('contacts')
+          .from('shared_postmark_config')
+          .insert({
+            transactional_server_token: body.transactional_server_token,
+            transactional_server_id: body.transactional_server_id,
+            transactional_stream_id: body.transactional_stream_id,
+            marketing_server_token: body.marketing_server_token,
+            marketing_server_id: body.marketing_server_id,
+            marketing_stream_id: body.marketing_stream_id,
+            default_from_email: body.default_from_email,
+            default_from_name: body.default_from_name,
+            default_reply_to: body.default_reply_to
+          })
+      }
     }
 
     if (result.error) {

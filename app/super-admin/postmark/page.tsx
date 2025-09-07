@@ -38,7 +38,15 @@ interface SharedConfig {
   default_reply_to?: string
 }
 
+interface Tenant {
+  id: string
+  name: string
+  slug: string
+}
+
 export default function PostmarkConfigPage() {
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('default')
+  const [tenants, setTenants] = useState<Tenant[]>([])
   const [servers, setServers] = useState<PostmarkServer[]>([])
   const [streams, setStreams] = useState<Record<number, MessageStream[]>>({})
   const [config, setConfig] = useState<SharedConfig>({
@@ -56,15 +64,39 @@ export default function PostmarkConfigPage() {
   const [updatingTracking, setUpdatingTracking] = useState<number | null>(null)
 
   useEffect(() => {
+    fetchTenants()
     fetchServersAndConfig()
   }, [])
+
+  useEffect(() => {
+    // Refetch config when tenant selection changes
+    if (selectedTenantId) {
+      fetchServersAndConfig()
+    }
+  }, [selectedTenantId])
+
+  const fetchTenants = async () => {
+    try {
+      const response = await fetch('/api/super-admin/tenants')
+      if (response.ok) {
+        const data = await response.json()
+        setTenants(data.tenants || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch tenants:', err)
+    }
+  }
 
   const fetchServersAndConfig = async () => {
     try {
       setLoading(true)
       
-      // First, fetch current saved config from database
-      const configResponse = await fetch('/api/super-admin/postmark/config')
+      // First, fetch current saved config from database (with tenant ID if selected)
+      const configUrl = selectedTenantId === 'default' 
+        ? '/api/super-admin/postmark/config'
+        : `/api/super-admin/postmark/config?tenantId=${selectedTenantId}`
+      
+      const configResponse = await fetch(configUrl)
       
       if (configResponse.ok) {
         const data = await configResponse.json()
@@ -205,12 +237,17 @@ export default function PostmarkConfigPage() {
     setSuccess('')
 
     try {
-      const response = await fetch('/api/super-admin/postmark/config', {
+      const configUrl = selectedTenantId === 'default' 
+        ? '/api/super-admin/postmark/config'
+        : `/api/super-admin/postmark/config?tenantId=${selectedTenantId}`
+      
+      const response = await fetch(configUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          tenant_id: selectedTenantId === 'default' ? null : selectedTenantId,
           transactional_server_token: config.transactional_server_token,
           transactional_server_id: config.transactional_server_id,
           transactional_stream_id: config.transactional_stream_id,
@@ -224,7 +261,10 @@ export default function PostmarkConfigPage() {
       })
 
       if (response.ok) {
-        setSuccess('Shared server configuration saved successfully!')
+        const successMsg = selectedTenantId === 'default' 
+          ? 'Default configuration saved successfully!'
+          : `Configuration saved for ${tenants.find(t => t.id === selectedTenantId)?.name}!`
+        setSuccess(successMsg)
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(''), 3000)
       } else {
@@ -260,6 +300,41 @@ export default function PostmarkConfigPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Tenant Selector */}
+          <div className="border-2 border-gray-300 rounded-lg p-4 bg-blue-50">
+            <Label>Configuration For:</Label>
+            <Select
+              value={selectedTenantId}
+              onValueChange={setSelectedTenantId}
+            >
+              <SelectTrigger className="w-full mt-2">
+                <SelectValue placeholder="Select configuration target..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold">Default Configuration</span>
+                    <span className="text-sm text-gray-500">(Shared by all free-tier tenants)</span>
+                  </div>
+                </SelectItem>
+                <div className="my-2 border-t" />
+                {tenants.map(tenant => (
+                  <SelectItem key={tenant.id} value={tenant.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{tenant.name}</span>
+                      <span className="text-sm text-gray-500">({tenant.slug})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTenantId !== 'default' && (
+              <p className="text-sm text-blue-700 mt-2">
+                ⚠️ This will override the default configuration for {tenants.find(t => t.id === selectedTenantId)?.name}
+              </p>
+            )}
+          </div>
+
           {/* Notice */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
