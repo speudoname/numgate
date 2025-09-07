@@ -14,23 +14,32 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { serverId, serverToken, trackingType, enabled } = body
 
-    if (!serverId || !serverToken || !trackingType) {
+    if (!serverId || !trackingType) {
       return NextResponse.json(
-        { error: 'serverId, serverToken, and trackingType are required' },
+        { error: 'serverId and trackingType are required' },
         { status: 400 }
       )
     }
 
-    // Update tracking settings on Postmark
+    // Get the account token from environment
+    const accountToken = process.env.POSTMARK_ACCOUNT_TOKEN
+    if (!accountToken) {
+      return NextResponse.json(
+        { error: 'POSTMARK_ACCOUNT_TOKEN not configured' },
+        { status: 500 }
+      )
+    }
+
+    // Update tracking settings on Postmark using Account token
     const response = await fetch(`https://api.postmarkapp.com/servers/${serverId}`, {
       method: 'PUT',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': serverToken
+        'X-Postmark-Account-Token': accountToken
       },
       body: JSON.stringify({
-        [trackingType === 'opens' ? 'TrackOpens' : 'TrackLinks']: enabled ? 'HtmlAndText' : 'None'
+        [trackingType === 'opens' ? 'TrackOpens' : 'TrackLinks']: enabled
       })
     })
 

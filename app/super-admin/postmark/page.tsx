@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Server, Mail, Settings, Check, AlertCircle, Eye, EyeOff, MousePointer, MousePointerOff } from 'lucide-react'
+import { Loader2, Server, Mail, Settings, Check, AlertCircle, Eye, EyeOff, MousePointer } from 'lucide-react'
 
 interface PostmarkServer {
   ID: number
@@ -371,7 +371,7 @@ export default function PostmarkConfigPage() {
                               {server.TrackLinks ? (
                                 <MousePointer className="h-4 w-4 text-green-600" />
                               ) : (
-                                <MousePointerOff className="h-4 w-4 text-gray-400" />
+                                <MousePointer className="h-4 w-4 text-gray-400" />
                               )}
                               <span className="text-sm">Click Tracking</span>
                             </div>
@@ -500,7 +500,7 @@ export default function PostmarkConfigPage() {
                               {server.TrackLinks ? (
                                 <MousePointer className="h-4 w-4 text-green-600" />
                               ) : (
-                                <MousePointerOff className="h-4 w-4 text-gray-400" />
+                                <MousePointer className="h-4 w-4 text-gray-400" />
                               )}
                               <span className="text-sm">Click Tracking</span>
                             </div>
