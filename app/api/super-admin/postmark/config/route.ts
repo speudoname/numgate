@@ -25,20 +25,24 @@ export async function GET(request: NextRequest) {
         .from('postmark_settings')
         .select('*')
         .eq('tenant_id', tenantId)
-        .single()
+        .maybeSingle()
       
       if (tenantResult.data) {
         data = tenantResult.data
+      } else if (!tenantResult.error || tenantResult.error.code === 'PGRST116') {
+        // If no tenant-specific config exists (no error or not found error), return empty config
+        // This allows the UI to show the "Create servers" option
+        data = null
       } else {
-        // If no tenant-specific config, load default as starting point
+        // For other errors, try to load default as fallback
         const defaultResult = await supabaseAdmin
           .schema('contacts')
           .from('shared_postmark_config')
           .select('*')
-          .single()
+          .maybeSingle()
         data = defaultResult.data
+        error = defaultResult.error
       }
-      error = tenantResult.error && tenantResult.error.code !== 'PGRST116' ? tenantResult.error : null
     } else {
       // Fetch default shared config
       const result = await supabaseAdmin
@@ -50,7 +54,8 @@ export async function GET(request: NextRequest) {
       error = result.error
     }
 
-    if (error && error.code !== 'PGRST116') {
+    // Don't treat "not found" as an error - it's expected for new tenants
+    if (error && error.code !== 'PGRST116' && error.code !== '42501') {
       console.error('Error fetching config:', error)
       return NextResponse.json(
         { error: 'Failed to fetch configuration' },

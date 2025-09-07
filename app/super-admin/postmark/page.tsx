@@ -382,14 +382,20 @@ export default function PostmarkConfigPage() {
                   ⚠️ This will override the default configuration for {tenants.find(t => t.id === selectedTenantId)?.name}
                 </p>
                 {currentTenantPostmarkId && (
-                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="mt-3 p-3 bg-green-50 border-2 border-green-300 rounded-md">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm font-medium">Postmark ID: {currentTenantPostmarkId}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">Tenant ID: {currentTenantPostmarkId}</span>
+                        </div>
+                        <p className="text-xs text-green-700 mt-1">
+                          Will create: {currentTenantPostmarkId}-trans & {currentTenantPostmarkId}-market
+                        </p>
                       </div>
                       <Button
-                        size="sm"
+                        variant="default"
+                        className="bg-green-600 hover:bg-green-700"
                         onClick={() => handleCreateServers()}
                         disabled={creatingServers}
                       >
@@ -401,14 +407,11 @@ export default function PostmarkConfigPage() {
                         ) : (
                           <>
                             <Plus className="mr-2 h-4 w-4" />
-                            Create Servers for Tenant
+                            Auto-Create Servers
                           </>
                         )}
                       </Button>
                     </div>
-                    <p className="text-xs text-yellow-700 mt-2">
-                      Suggested server names: {currentTenantPostmarkId}-trans, {currentTenantPostmarkId}-market
-                    </p>
                   </div>
                 )}
               </>
@@ -446,6 +449,22 @@ export default function PostmarkConfigPage() {
                       <SelectValue placeholder="Select server..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Create new servers option for tenants */}
+                      {currentTenantPostmarkId && selectedTenantId !== 'default' && (
+                        <>
+                          <div 
+                            className="flex items-center gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer border-b"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCreateServers()
+                            }}
+                          >
+                            <Plus className="h-4 w-4 text-green-600" />
+                            <span className="font-medium text-green-600">Create servers for {currentTenantPostmarkId}</span>
+                          </div>
+                        </>
+                      )}
+                      
                       {/* Show suggested servers first if they exist */}
                       {currentTenantPostmarkId && (() => {
                         const suggestedServers = servers.filter(s => 
@@ -468,6 +487,7 @@ export default function PostmarkConfigPage() {
                         }
                         return null
                       })()}
+                      
                       {/* Show all other servers */}
                       <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
                         All Servers
@@ -601,6 +621,22 @@ export default function PostmarkConfigPage() {
                       <SelectValue placeholder="Select server..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Create new servers option for tenants */}
+                      {currentTenantPostmarkId && selectedTenantId !== 'default' && (
+                        <>
+                          <div 
+                            className="flex items-center gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer border-b"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCreateServers()
+                            }}
+                          >
+                            <Plus className="h-4 w-4 text-green-600" />
+                            <span className="font-medium text-green-600">Create servers for {currentTenantPostmarkId}</span>
+                          </div>
+                        </>
+                      )}
+                      
                       {/* Show suggested servers first if they exist */}
                       {currentTenantPostmarkId && (() => {
                         const suggestedServers = servers.filter(s => 
@@ -623,6 +659,7 @@ export default function PostmarkConfigPage() {
                         }
                         return null
                       })()}
+                      
                       {/* Show all other servers */}
                       <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
                         All Servers
