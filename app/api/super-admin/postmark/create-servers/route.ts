@@ -139,15 +139,15 @@ export async function POST(request: NextRequest) {
     // By default, servers come with 'outbound' (transactional) and 'broadcasts' (broadcast) streams
     // We don't need to create them, but we could create custom ones if needed
 
-    // Save the server configuration to database - using correct column names
+    // Save the server configuration to database - using actual database column names
     const { error: dbError } = await supabaseAdmin
       .schema('contacts')
       .from('postmark_settings')
       .upsert({
         tenant_id: tenantId,
         postmark_id: postmarkId,
-        transactional_server_token: transServer.ApiTokens[0],
-        transactional_server_id: transServer.ID,
+        server_token: transServer.ApiTokens[0],
+        server_id: transServer.ID,
         server_mode: 'dedicated',
         transactional_stream_id: 'outbound',
         marketing_stream_id: 'broadcasts',
