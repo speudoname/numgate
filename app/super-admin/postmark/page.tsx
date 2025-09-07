@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Server, Mail, Settings, Check, AlertCircle } from 'lucide-react'
+import { Loader2, Server, Mail, Settings, Check, AlertCircle, Eye, EyeOff, MousePointer, MousePointerOff } from 'lucide-react'
 
 interface PostmarkServer {
   ID: number
@@ -53,6 +53,7 @@ export default function PostmarkConfigPage() {
   const [fetchingStreams, setFetchingStreams] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [updatingTracking, setUpdatingTracking] = useState<number | null>(null)
 
   useEffect(() => {
     fetchServersAndConfig()
@@ -157,6 +158,45 @@ export default function PostmarkConfigPage() {
 
     // Fetch streams for this server
     await fetchStreamsForServer(server.ID, token)
+  }
+
+  const toggleTracking = async (serverId: number, serverToken: string, trackingType: 'opens' | 'clicks', currentValue: boolean) => {
+    setUpdatingTracking(serverId)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/super-admin/postmark/tracking', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          serverId,
+          serverToken,
+          trackingType,
+          enabled: !currentValue
+        })
+      })
+
+      if (response.ok) {
+        // Refresh servers to get updated tracking status
+        const serversResponse = await fetch('/api/super-admin/postmark/servers')
+        if (serversResponse.ok) {
+          const data = await serversResponse.json()
+          setServers(data.servers || [])
+        }
+        setSuccess(`${trackingType === 'opens' ? 'Open' : 'Click'} tracking ${!currentValue ? 'enabled' : 'disabled'}`)
+        setTimeout(() => setSuccess(''), 3000)
+      } else {
+        const data = await response.json()
+        setError(data.error || `Failed to update ${trackingType} tracking`)
+      }
+    } catch (err: any) {
+      console.error('Toggle tracking error:', err)
+      setError(`Failed to update ${trackingType} tracking`)
+    } finally {
+      setUpdatingTracking(null)
+    }
   }
 
   const handleSave = async () => {
@@ -283,15 +323,76 @@ export default function PostmarkConfigPage() {
               </div>
 
               {config.transactional_server_token && (
-                <div>
-                  <Label>Server Token</Label>
-                  <Input
-                    type="password"
-                    value={config.transactional_server_token}
-                    onChange={(e) => setConfig({ ...config, transactional_server_token: e.target.value })}
-                    placeholder="Server API token"
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label>Server Token</Label>
+                    <Input
+                      type="password"
+                      value={config.transactional_server_token}
+                      onChange={(e) => setConfig({ ...config, transactional_server_token: e.target.value })}
+                      placeholder="Server API token"
+                    />
+                  </div>
+                  
+                  {/* Tracking Status for selected server */}
+                  {config.transactional_server_id && (() => {
+                    const server = servers.find(s => s.ID === config.transactional_server_id)
+                    if (!server) return null
+                    
+                    return (
+                      <div className="border rounded-lg p-4 bg-gray-50">
+                        <h4 className="font-medium mb-3">Tracking Settings</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {server.TrackOpens ? (
+                                <Eye className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <EyeOff className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="text-sm">Open Tracking</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={server.TrackOpens ? "default" : "outline"}
+                              onClick={() => toggleTracking(server.ID, config.transactional_server_token!, 'opens', server.TrackOpens)}
+                              disabled={updatingTracking === server.ID}
+                            >
+                              {updatingTracking === server.ID ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                server.TrackOpens ? 'Enabled' : 'Disabled'
+                              )}
+                            </Button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {server.TrackLinks ? (
+                                <MousePointer className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <MousePointerOff className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="text-sm">Click Tracking</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={server.TrackLinks ? "default" : "outline"}
+                              onClick={() => toggleTracking(server.ID, config.transactional_server_token!, 'clicks', !!server.TrackLinks)}
+                              disabled={updatingTracking === server.ID}
+                            >
+                              {updatingTracking === server.ID ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                server.TrackLinks ? 'Enabled' : 'Disabled'
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
               )}
             </CardContent>
           </Card>
@@ -351,15 +452,76 @@ export default function PostmarkConfigPage() {
               </div>
 
               {config.marketing_server_token && (
-                <div>
-                  <Label>Server Token</Label>
-                  <Input
-                    type="password"
-                    value={config.marketing_server_token}
-                    onChange={(e) => setConfig({ ...config, marketing_server_token: e.target.value })}
-                    placeholder="Server API token"
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label>Server Token</Label>
+                    <Input
+                      type="password"
+                      value={config.marketing_server_token}
+                      onChange={(e) => setConfig({ ...config, marketing_server_token: e.target.value })}
+                      placeholder="Server API token"
+                    />
+                  </div>
+                  
+                  {/* Tracking Status for selected server */}
+                  {config.marketing_server_id && (() => {
+                    const server = servers.find(s => s.ID === config.marketing_server_id)
+                    if (!server) return null
+                    
+                    return (
+                      <div className="border rounded-lg p-4 bg-gray-50">
+                        <h4 className="font-medium mb-3">Tracking Settings</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {server.TrackOpens ? (
+                                <Eye className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <EyeOff className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="text-sm">Open Tracking</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={server.TrackOpens ? "default" : "outline"}
+                              onClick={() => toggleTracking(server.ID, config.marketing_server_token!, 'opens', server.TrackOpens)}
+                              disabled={updatingTracking === server.ID}
+                            >
+                              {updatingTracking === server.ID ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                server.TrackOpens ? 'Enabled' : 'Disabled'
+                              )}
+                            </Button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {server.TrackLinks ? (
+                                <MousePointer className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <MousePointerOff className="h-4 w-4 text-gray-400" />
+                              )}
+                              <span className="text-sm">Click Tracking</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={server.TrackLinks ? "default" : "outline"}
+                              onClick={() => toggleTracking(server.ID, config.marketing_server_token!, 'clicks', !!server.TrackLinks)}
+                              disabled={updatingTracking === server.ID}
+                            >
+                              {updatingTracking === server.ID ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                server.TrackLinks ? 'Enabled' : 'Disabled'
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
               )}
             </CardContent>
           </Card>
