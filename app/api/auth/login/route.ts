@@ -138,10 +138,23 @@ export async function POST(request: NextRequest) {
         // Specific tenant requested
         targetTenant = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.tenants
         userRole = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.role
-      } else {
-        // Default to first tenant
+      } else if (memberships.length === 1) {
+        // Single tenant - use it directly
         targetTenant = memberships[0]?.tenants
         userRole = memberships[0]?.role
+      } else {
+        // Multiple tenants - return list for user to choose
+        // Frontend should show a tenant selector
+        return NextResponse.json({
+          requiresTenantSelection: true,
+          tenants: memberships.map((m: any) => ({
+            id: m.tenants.id,
+            name: m.tenants.name,
+            slug: m.tenants.slug,
+            role: m.role,
+            hasCustomDomain: m.tenants.custom_domains?.some((d: any) => d.verified && d.is_primary)
+          }))
+        }, { status: 200 })
       }
     } else {
       // Tenant mode - need to identify which tenant based on domain
