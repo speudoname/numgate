@@ -657,27 +657,32 @@ export default function PostmarkConfigPage() {
                         </SelectItem>
                       )}
                       
-                      {/* Show suggested servers first if they exist */}
-                      {currentTenantPostmarkId && (() => {
+                      {/* Show suggested servers or "No suggestions" if tenant selected */}
+                      {currentTenantPostmarkId && selectedTenantId !== 'default' && (() => {
                         const suggestedServers = servers.filter(s => 
                           s.Name.toLowerCase().includes(currentTenantPostmarkId.toLowerCase() + '-trans')
                         )
-                        if (suggestedServers.length > 0) {
-                          return (
-                            <>
-                              <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
-                                ⭐ Suggested for {currentTenantPostmarkId}
+                        return (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                              ⭐ Suggested for {currentTenantPostmarkId}
+                            </div>
+                            {suggestedServers.length > 0 ? (
+                              <>
+                                {suggestedServers.map(server => (
+                                  <SelectItem key={server.ID} value={server.ID.toString()}>
+                                    {server.Name} {server.TrackOpens === false && '(No tracking ✓)'}
+                                  </SelectItem>
+                                ))}
+                              </>
+                            ) : (
+                              <div className="px-2 py-2 text-xs text-gray-500 italic">
+                                No matching servers found
                               </div>
-                              {suggestedServers.map(server => (
-                                <SelectItem key={server.ID} value={server.ID.toString()}>
-                                  {server.Name} {server.TrackOpens === false && '(No tracking ✓)'}
-                                </SelectItem>
-                              ))}
-                              <div className="my-1 border-t" />
-                            </>
-                          )
-                        }
-                        return null
+                            )}
+                            <div className="my-1 border-t" />
+                          </>
+                        )
                       })()}
                       
                       {/* Show all other servers */}
@@ -826,27 +831,32 @@ export default function PostmarkConfigPage() {
                         </SelectItem>
                       )}
                       
-                      {/* Show suggested servers first if they exist */}
-                      {currentTenantPostmarkId && (() => {
+                      {/* Show suggested servers or "No suggestions" if tenant selected */}
+                      {currentTenantPostmarkId && selectedTenantId !== 'default' && (() => {
                         const suggestedServers = servers.filter(s => 
                           s.Name.toLowerCase().includes(currentTenantPostmarkId.toLowerCase() + '-market')
                         )
-                        if (suggestedServers.length > 0) {
-                          return (
-                            <>
-                              <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
-                                ⭐ Suggested for {currentTenantPostmarkId}
+                        return (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                              ⭐ Suggested for {currentTenantPostmarkId}
+                            </div>
+                            {suggestedServers.length > 0 ? (
+                              <>
+                                {suggestedServers.map(server => (
+                                  <SelectItem key={server.ID} value={server.ID.toString()}>
+                                    {server.Name} {server.TrackOpens && '(Tracking enabled ✓)'}
+                                  </SelectItem>
+                                ))}
+                              </>
+                            ) : (
+                              <div className="px-2 py-2 text-xs text-gray-500 italic">
+                                No matching servers found
                               </div>
-                              {suggestedServers.map(server => (
-                                <SelectItem key={server.ID} value={server.ID.toString()}>
-                                  {server.Name} {server.TrackOpens && '(Tracking enabled ✓)'}
-                                </SelectItem>
-                              ))}
-                              <div className="my-1 border-t" />
-                            </>
-                          )
-                        }
-                        return null
+                            )}
+                            <div className="my-1 border-t" />
+                          </>
+                        )
                       })()}
                       
                       {/* Show all other servers */}
@@ -998,55 +1008,80 @@ export default function PostmarkConfigPage() {
                       </div>
                     </SelectItem>
                     
-                    {/* Show suggested signatures first if we have tenant domains */}
-                    {tenantDomains.length > 0 && (() => {
+                    {/* Show suggested signatures or "No suggestions" message */}
+                    {selectedTenantId !== 'default' && (() => {
+                      // More precise domain matching
                       const suggestedDomainSigs = signatures.domains.filter(sig => 
-                        tenantDomains.some(domain => 
-                          domain.toLowerCase().includes(sig.Name.toLowerCase()) ||
-                          sig.Name.toLowerCase().includes(domain.toLowerCase())
-                        )
-                      )
-                      const suggestedSenderSigs = signatures.senders.filter(sig => 
-                        sig.EmailAddress && tenantDomains.some(domain => 
-                          sig.EmailAddress.toLowerCase().includes(domain.toLowerCase())
-                        )
+                        tenantDomains.some(domain => {
+                          // Extract the base domain for comparison
+                          const baseDomain = domain.replace(/^[^.]+\./, '') // Remove subdomain if present
+                          const sigDomain = sig.Name.toLowerCase()
+                          const domainLower = domain.toLowerCase()
+                          
+                          // Check for exact match or if signature domain is the same as tenant domain
+                          return sigDomain === domainLower || 
+                                 sigDomain === baseDomain.toLowerCase() ||
+                                 (domainLower.endsWith('.komunate.com') && sigDomain === domainLower)
+                        })
                       )
                       
-                      if (suggestedDomainSigs.length > 0 || suggestedSenderSigs.length > 0) {
-                        return (
-                          <>
-                            <div className="my-1 border-t" />
-                            <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
-                              ⭐ Suggested for this tenant
+                      const suggestedSenderSigs = signatures.senders.filter(sig => {
+                        if (!sig.EmailAddress) return false
+                        const emailDomain = sig.EmailAddress.split('@')[1]?.toLowerCase()
+                        if (!emailDomain) return false
+                        
+                        return tenantDomains.some(domain => {
+                          const domainLower = domain.toLowerCase()
+                          const baseDomain = domain.replace(/^[^.]+\./, '').toLowerCase()
+                          
+                          // Check if email domain matches tenant domain
+                          return emailDomain === domainLower || 
+                                 emailDomain === baseDomain ||
+                                 (domainLower.endsWith('.komunate.com') && emailDomain === domainLower)
+                        })
+                      })
+                      
+                      // Always show a suggestions section for selected tenants
+                      return (
+                        <>
+                          <div className="my-1 border-t" />
+                          <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                            ⭐ Suggested for this tenant
+                          </div>
+                          {(suggestedDomainSigs.length > 0 || suggestedSenderSigs.length > 0) ? (
+                            <>
+                              {suggestedDomainSigs.map(sig => (
+                                <SelectItem key={`suggested-domain-${sig.ID}`} value={sig.ID.toString()}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{sig.Name}</span>
+                                    {sig.SPFVerified && sig.DKIMVerified ? (
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    ) : (
+                                      <AlertCircle className="h-3 w-3 text-yellow-600" />
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              {suggestedSenderSigs.map(sig => (
+                                <SelectItem key={`suggested-sender-${sig.ID}`} value={sig.ID.toString()}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{sig.EmailAddress || sig.Name}</span>
+                                    {sig.Confirmed ? (
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    ) : (
+                                      <AlertCircle className="h-3 w-3 text-yellow-600" />
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </>
+                          ) : (
+                            <div className="px-2 py-2 text-xs text-gray-500 italic">
+                              No matching signatures found
                             </div>
-                            {suggestedDomainSigs.map(sig => (
-                              <SelectItem key={`suggested-domain-${sig.ID}`} value={sig.ID.toString()}>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{sig.Name}</span>
-                                  {sig.SPFVerified && sig.DKIMVerified ? (
-                                    <Check className="h-3 w-3 text-green-600" />
-                                  ) : (
-                                    <AlertCircle className="h-3 w-3 text-yellow-600" />
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                            {suggestedSenderSigs.map(sig => (
-                              <SelectItem key={`suggested-sender-${sig.ID}`} value={sig.ID.toString()}>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{sig.EmailAddress || sig.Name}</span>
-                                  {sig.Confirmed ? (
-                                    <Check className="h-3 w-3 text-green-600" />
-                                  ) : (
-                                    <AlertCircle className="h-3 w-3 text-yellow-600" />
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </>
-                        )
-                      }
-                      return null
+                          )}
+                        </>
+                      )
                     })()}
                     
                     {/* Domain signatures */}
@@ -1056,13 +1091,20 @@ export default function PostmarkConfigPage() {
                         <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
                           {tenantDomains.length > 0 ? 'All Domain Signatures' : 'Domain Signatures'}
                         </div>
-                        {signatures.domains.filter(sig => 
+                        {signatures.domains.filter(sig => {
                           // Exclude suggested signatures if we have tenant domains
-                          tenantDomains.length === 0 || 
-                          !tenantDomains.some(domain => 
-                            domain.toLowerCase().includes(sig.Name.toLowerCase()) ||
-                            sig.Name.toLowerCase().includes(domain.toLowerCase())
-                          )
+                          if (tenantDomains.length === 0) return true
+                          
+                          return !tenantDomains.some(domain => {
+                            const baseDomain = domain.replace(/^[^.]+\./, '')
+                            const sigDomain = sig.Name.toLowerCase()
+                            const domainLower = domain.toLowerCase()
+                            
+                            return sigDomain === domainLower || 
+                                   sigDomain === baseDomain.toLowerCase() ||
+                                   (domainLower.endsWith('.komunate.com') && sigDomain === domainLower)
+                          })
+                        }
                         ).map(sig => (
                           <SelectItem key={`domain-${sig.ID}`} value={sig.ID.toString()}>
                             <div className="flex items-center gap-2">
@@ -1085,13 +1127,23 @@ export default function PostmarkConfigPage() {
                         <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
                           {tenantDomains.length > 0 ? 'All Sender Signatures' : 'Sender Signatures'}
                         </div>
-                        {signatures.senders.filter(sig => 
+                        {signatures.senders.filter(sig => {
                           // Exclude suggested signatures if we have tenant domains
-                          tenantDomains.length === 0 || 
-                          !sig.EmailAddress || 
-                          !tenantDomains.some(domain => 
-                            sig.EmailAddress.toLowerCase().includes(domain.toLowerCase())
-                          )
+                          if (tenantDomains.length === 0) return true
+                          if (!sig.EmailAddress) return true
+                          
+                          const emailDomain = sig.EmailAddress.split('@')[1]?.toLowerCase()
+                          if (!emailDomain) return true
+                          
+                          return !tenantDomains.some(domain => {
+                            const domainLower = domain.toLowerCase()
+                            const baseDomain = domain.replace(/^[^.]+\./, '').toLowerCase()
+                            
+                            return emailDomain === domainLower || 
+                                   emailDomain === baseDomain ||
+                                   (domainLower.endsWith('.komunate.com') && emailDomain === domainLower)
+                          })
+                        }
                         ).map(sig => (
                           <SelectItem key={`sender-${sig.ID}`} value={sig.ID.toString()}>
                             <div className="flex items-center gap-2">
