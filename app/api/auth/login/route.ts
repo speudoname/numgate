@@ -144,9 +144,31 @@ export async function POST(request: NextRequest) {
         userRole = memberships[0]?.role
       }
     } else {
-      // Tenant mode - find matching tenant
-      targetTenant = memberships.find((m: any) => m.tenants.slug === host?.split('.')[0])?.tenants
-      userRole = memberships.find((m: any) => m.tenants.slug === host?.split('.')[0])?.role
+      // Tenant mode - need to identify which tenant based on domain
+      // Clean the host (remove port and www)
+      const cleanHost = host?.toLowerCase()
+        .replace(/:\d+$/, '') // Remove port
+        .replace(/^www\./, '') // Remove www prefix
+      
+      // First check if this is a custom domain
+      targetTenant = memberships.find((m: any) => {
+        const customDomains = m.tenants.custom_domains || []
+        return customDomains.some((cd: any) => 
+          cd.domain === cleanHost && cd.verified === true
+        )
+      })?.tenants
+      
+      if (targetTenant) {
+        userRole = memberships.find((m: any) => m.tenants.id === targetTenant.id)?.role
+      } else {
+        // Not a custom domain, check if it's a subdomain pattern
+        // e.g., acme.komunate.com -> slug = acme
+        if (cleanHost?.includes('.komunate.com') || cleanHost?.includes('.localhost')) {
+          const slug = cleanHost.split('.')[0]
+          targetTenant = memberships.find((m: any) => m.tenants.slug === slug)?.tenants
+          userRole = memberships.find((m: any) => m.tenants.slug === slug)?.role
+        }
+      }
     }
 
     if (!targetTenant) {
