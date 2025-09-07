@@ -72,6 +72,7 @@ export default function PostmarkConfigPage() {
   const [creatingSignature, setCreatingSignature] = useState(false)
   const [showDNSRecords, setShowDNSRecords] = useState(false)
   const [dnsRecords, setDnsRecords] = useState<any>(null)
+  const [tenantDomains, setTenantDomains] = useState<string[]>([])
   const [config, setConfig] = useState<SharedConfig>({
     transactional_stream_id: 'outbound',
     marketing_stream_id: 'broadcasts',
@@ -103,8 +104,16 @@ export default function PostmarkConfigPage() {
       console.log('Selected tenant:', tenant)
       console.log('Postmark ID:', tenant?.postmark_id)
       setCurrentTenantPostmarkId(tenant?.postmark_id || null)
+      
+      // Fetch tenant domains for signature suggestions
+      if (selectedTenantId !== 'default') {
+        fetchTenantDomains(selectedTenantId)
+      } else {
+        setTenantDomains([])
+      }
     } else {
       setCurrentTenantPostmarkId(null)
+      setTenantDomains([])
     }
   }, [selectedTenantId, tenants])
 
@@ -178,6 +187,20 @@ export default function PostmarkConfigPage() {
       }
     } catch (err) {
       console.error('Failed to fetch signatures:', err)
+    }
+  }
+
+  const fetchTenantDomains = async (tenantId: string) => {
+    try {
+      const response = await fetch(`/api/super-admin/tenant-domains?tenantId=${tenantId}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTenantDomains(data.domains || [])
+        console.log('Tenant domains:', data.domains)
+      }
+    } catch (err) {
+      console.error('Failed to fetch tenant domains:', err)
     }
   }
 
@@ -975,14 +998,72 @@ export default function PostmarkConfigPage() {
                       </div>
                     </SelectItem>
                     
+                    {/* Show suggested signatures first if we have tenant domains */}
+                    {tenantDomains.length > 0 && (() => {
+                      const suggestedDomainSigs = signatures.domains.filter(sig => 
+                        tenantDomains.some(domain => 
+                          domain.toLowerCase().includes(sig.Name.toLowerCase()) ||
+                          sig.Name.toLowerCase().includes(domain.toLowerCase())
+                        )
+                      )
+                      const suggestedSenderSigs = signatures.senders.filter(sig => 
+                        sig.EmailAddress && tenantDomains.some(domain => 
+                          sig.EmailAddress.toLowerCase().includes(domain.toLowerCase())
+                        )
+                      )
+                      
+                      if (suggestedDomainSigs.length > 0 || suggestedSenderSigs.length > 0) {
+                        return (
+                          <>
+                            <div className="my-1 border-t" />
+                            <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                              ⭐ Suggested for this tenant
+                            </div>
+                            {suggestedDomainSigs.map(sig => (
+                              <SelectItem key={`suggested-domain-${sig.ID}`} value={sig.ID.toString()}>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{sig.Name}</span>
+                                  {sig.SPFVerified && sig.DKIMVerified ? (
+                                    <Check className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <AlertCircle className="h-3 w-3 text-yellow-600" />
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                            {suggestedSenderSigs.map(sig => (
+                              <SelectItem key={`suggested-sender-${sig.ID}`} value={sig.ID.toString()}>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{sig.EmailAddress || sig.Name}</span>
+                                  {sig.Confirmed ? (
+                                    <Check className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <AlertCircle className="h-3 w-3 text-yellow-600" />
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
+                    
                     {/* Domain signatures */}
                     {signatures.domains.length > 0 && (
                       <>
                         <div className="my-1 border-t" />
                         <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
-                          Domain Signatures
+                          {tenantDomains.length > 0 ? 'All Domain Signatures' : 'Domain Signatures'}
                         </div>
-                        {signatures.domains.map(sig => (
+                        {signatures.domains.filter(sig => 
+                          // Exclude suggested signatures if we have tenant domains
+                          tenantDomains.length === 0 || 
+                          !tenantDomains.some(domain => 
+                            domain.toLowerCase().includes(sig.Name.toLowerCase()) ||
+                            sig.Name.toLowerCase().includes(domain.toLowerCase())
+                          )
+                        ).map(sig => (
                           <SelectItem key={`domain-${sig.ID}`} value={sig.ID.toString()}>
                             <div className="flex items-center gap-2">
                               <span>{sig.Name}</span>
@@ -1002,9 +1083,16 @@ export default function PostmarkConfigPage() {
                       <>
                         <div className="my-1 border-t" />
                         <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
-                          Sender Signatures
+                          {tenantDomains.length > 0 ? 'All Sender Signatures' : 'Sender Signatures'}
                         </div>
-                        {signatures.senders.map(sig => (
+                        {signatures.senders.filter(sig => 
+                          // Exclude suggested signatures if we have tenant domains
+                          tenantDomains.length === 0 || 
+                          !sig.EmailAddress || 
+                          !tenantDomains.some(domain => 
+                            sig.EmailAddress.toLowerCase().includes(domain.toLowerCase())
+                          )
+                        ).map(sig => (
                           <SelectItem key={`sender-${sig.ID}`} value={sig.ID.toString()}>
                             <div className="flex items-center gap-2">
                               <span>{sig.EmailAddress || sig.Name}</span>
