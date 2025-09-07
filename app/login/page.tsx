@@ -15,6 +15,9 @@ export default function LoginPage() {
   const { isPlatform, tenantSlug } = usePlatformDetection()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showTenantSelection, setShowTenantSelection] = useState(false)
+  const [availableTenants, setAvailableTenants] = useState<any[]>([])
+  const [userData, setUserData] = useState<any>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -26,6 +29,45 @@ export default function LoginPage() {
       [e.target.name]: e.target.value
     })
     setError('')
+  }
+
+  const handleTenantSelect = async (tenantId: string) => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId
+        },
+        body: JSON.stringify(formData)
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Login failed')
+        setLoading(false)
+        return
+      }
+
+      // Redirect to the tenant domain
+      if (data.redirectUrl) {
+        if (data.redirectUrl.startsWith('http')) {
+          window.location.href = data.redirectUrl
+        } else {
+          router.push(data.redirectUrl)
+        }
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (err) {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +93,15 @@ export default function LoginPage() {
         return
       }
 
+      // Check if tenant selection is required
+      if (data.requiresTenantSelection) {
+        setAvailableTenants(data.tenants)
+        setUserData(data.user)
+        setShowTenantSelection(true)
+        setLoading(false)
+        return
+      }
+
       // Check if we need to redirect to a custom domain
       if (data.redirectUrl) {
         if (data.redirectUrl.startsWith('http')) {
@@ -69,6 +120,60 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showTenantSelection) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Select Your Organization</CardTitle>
+            <CardDescription>
+              Welcome back, {userData?.name || userData?.email}! 
+              You have access to multiple organizations. Please select one to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div className="space-y-2">
+              {availableTenants.map((tenant) => (
+                <Button
+                  key={tenant.id}
+                  variant="outline"
+                  className="w-full justify-between p-4 h-auto"
+                  onClick={() => handleTenantSelect(tenant.id)}
+                  disabled={loading}
+                >
+                  <div className="text-left">
+                    <div className="font-semibold">{tenant.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {tenant.primaryDomain || `${tenant.slug}.komunate.com`} • {tenant.role}
+                    </div>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setShowTenantSelection(false)
+                setFormData({ email: '', password: '' })
+              }}
+            >
+              Back to Login
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   return (

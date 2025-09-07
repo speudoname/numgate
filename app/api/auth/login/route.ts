@@ -139,10 +139,31 @@ export async function POST(request: NextRequest) {
         // Specific tenant requested
         targetTenant = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.tenants
         userRole = memberships.find((m: any) => m.tenant_id === tenantIdFromHeader)?.role
-      } else {
-        // Default to first tenant
+      } else if (memberships.length === 1) {
+        // Only one tenant, auto-select
         targetTenant = memberships[0]?.tenants
         userRole = memberships[0]?.role
+      } else {
+        // Multiple tenants available - return list for selection
+        const availableTenants = memberships.map((m: any) => ({
+          id: m.tenants.id,
+          name: m.tenants.name,
+          slug: m.tenants.slug,
+          role: m.role,
+          hasCustomDomain: m.tenants.custom_domains?.some((d: any) => d.verified && d.is_primary),
+          primaryDomain: m.tenants.custom_domains?.find((d: any) => d.verified && d.is_primary)?.domain
+        }))
+        
+        return NextResponse.json({
+          success: true,
+          requiresTenantSelection: true,
+          tenants: availableTenants,
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name
+          }
+        }, { status: 200 })
       }
     } else {
       // Tenant mode - need to identify which tenant based on domain
@@ -200,13 +221,13 @@ export async function POST(request: NextRequest) {
     let redirectUrl = '/dashboard'
     
     if (isPlatform) {
-      // Redirect from platform to tenant's domain
+      // Redirect from platform to tenant's domain with token for auto-login
       if (primaryDomain?.domain) {
-        // Use verified custom domain
-        redirectUrl = `https://${primaryDomain.domain}/dashboard`
+        // Use verified custom domain with token
+        redirectUrl = `https://${primaryDomain.domain}/auth/callback?token=${token}`
       } else {
-        // Use subdomain (always works)
-        redirectUrl = `https://${targetTenant.slug}.komunate.com/dashboard`
+        // Use subdomain with token (always works)
+        redirectUrl = `https://${targetTenant.slug}.komunate.com/auth/callback?token=${token}`
       }
     } else {
       // Already on tenant domain, stay here

@@ -8,7 +8,7 @@ import type { Tenant, User } from '@/types/database'
 
 export async function POST(request: NextRequest) {
   try {
-    const { tenantName, email, password, name } = await request.json()
+    const { tenantName, slug, email, password, name } = await request.json()
     const host = request.headers.get('host')
     
     // Check if this is a platform domain
@@ -22,9 +22,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate input
-    if (!tenantName || !email || !password) {
+    if (!tenantName || !email || !password || !slug) {
       return NextResponse.json(
-        { error: 'Tenant name, email and password are required' },
+        { error: 'Organization name, subdomain, email and password are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate slug format
+    if (!/^[a-z0-9-]+$/.test(slug) || slug.length < 3) {
+      return NextResponse.json(
+        { error: 'Invalid subdomain format' },
         { status: 400 }
       )
     }
@@ -43,12 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create slug from tenant name
-    const slug = tenantName.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-
-    // Check if slug exists
+    // Check if slug exists (double-check, even though frontend checks)
     const { data: existingTenant } = await supabaseAdmin
       .from('tenants')
       .select('slug')
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     if (existingTenant) {
       return NextResponse.json(
-        { error: 'Tenant name already taken' },
+        { error: 'Subdomain already taken' },
         { status: 400 }
       )
     }

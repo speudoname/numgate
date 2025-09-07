@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -8,6 +8,9 @@ export default function RegisterPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [subdomain, setSubdomain] = useState('')
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null)
+  const [checkingSubdomain, setCheckingSubdomain] = useState(false)
   const [formData, setFormData] = useState({
     tenantName: '',
     email: '',
@@ -16,12 +19,58 @@ export default function RegisterPage() {
     name: ''
   })
 
+  // Generate subdomain from company name
+  useEffect(() => {
+    if (formData.tenantName) {
+      const generatedSubdomain = formData.tenantName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .substring(0, 30) // Limit length
+      setSubdomain(generatedSubdomain)
+    }
+  }, [formData.tenantName])
+
+  // Check subdomain availability with debounce
+  useEffect(() => {
+    if (!subdomain || subdomain.length < 3) {
+      setSubdomainAvailable(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingSubdomain(true)
+      try {
+        const response = await fetch('/api/auth/check-subdomain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subdomain })
+        })
+        const data = await response.json()
+        setSubdomainAvailable(data.available)
+      } catch (err) {
+        console.error('Error checking subdomain:', err)
+      } finally {
+        setCheckingSubdomain(false)
+      }
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(timer)
+  }, [subdomain])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     })
     setError('')
+  }
+
+  const handleSubdomainChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '') // Only allow alphanumeric and hyphens
+    setSubdomain(value)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,6 +88,17 @@ export default function RegisterPage() {
       return
     }
 
+    // Validate subdomain
+    if (!subdomain || subdomain.length < 3) {
+      setError('Subdomain must be at least 3 characters')
+      return
+    }
+
+    if (subdomainAvailable === false) {
+      setError('This subdomain is already taken')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -50,6 +110,7 @@ export default function RegisterPage() {
         },
         body: JSON.stringify({
           tenantName: formData.tenantName,
+          slug: subdomain, // Pass the chosen subdomain
           email: formData.email,
           password: formData.password,
           name: formData.name
@@ -122,6 +183,44 @@ export default function RegisterPage() {
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border-2 border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="My Company"
               />
+            </div>
+
+            <div>
+              <label htmlFor="subdomain" className="block text-sm font-medium text-gray-700">
+                Your Subdomain
+              </label>
+              <div className="mt-1 flex rounded-md shadow-sm">
+                <input
+                  id="subdomain"
+                  name="subdomain"
+                  type="text"
+                  required
+                  value={subdomain}
+                  onChange={handleSubdomainChange}
+                  className={`flex-1 appearance-none relative block w-full px-3 py-2 border-2 ${
+                    checkingSubdomain ? 'border-gray-300' :
+                    subdomainAvailable === true ? 'border-green-500' :
+                    subdomainAvailable === false ? 'border-red-500' :
+                    'border-gray-300'
+                  } rounded-l-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  placeholder="mycompany"
+                />
+                <span className="inline-flex items-center px-3 rounded-r-md border-2 border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                  .komunate.com
+                </span>
+              </div>
+              {checkingSubdomain && (
+                <p className="mt-1 text-xs text-gray-500">Checking availability...</p>
+              )}
+              {!checkingSubdomain && subdomainAvailable === true && (
+                <p className="mt-1 text-xs text-green-600">✓ Available</p>
+              )}
+              {!checkingSubdomain && subdomainAvailable === false && (
+                <p className="mt-1 text-xs text-red-600">✗ Already taken</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                This will be your unique access point for your organization
+              </p>
             </div>
 
             <div>
