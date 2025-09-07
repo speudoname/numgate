@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
     
     const { email, password } = validation.data
 
-    // OPTIMIZED: Single query to get user with tenant memberships and primary domain
+    // OPTIMIZED: Single query to get user with tenant memberships and domains
+    // Uses left join for custom_domains to include users without custom domains
     // This reduces 3 separate queries to 1 optimized query
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
@@ -37,15 +38,15 @@ export async function POST(request: NextRequest) {
             email,
             subscription_plan,
             settings,
-            custom_domains!inner (
-              domain
+            custom_domains (
+              domain,
+              verified,
+              is_primary
             )
           )
         )
       `)
       .eq('email', email)
-      .eq('tenant_users.tenants.custom_domains.verified', true)
-      .eq('tenant_users.tenants.custom_domains.is_primary', true)
       .single()
 
     if (userError || !userData) {
@@ -93,21 +94,27 @@ export async function POST(request: NextRequest) {
             email,
             subscription_plan,
             settings,
-            custom_domains!inner (
-              domain
+            custom_domains (
+              domain,
+              verified,
+              is_primary
             )
           `)
           .eq('id', userData.tenant_id)
-          .eq('custom_domains.verified', true)
-          .eq('custom_domains.is_primary', true)
           .single()
 
         if (legacyTenant) {
+          // Process legacy tenant's custom domains for verified primary domain
+          const processedLegacyTenant = {
+            ...legacyTenant,
+            custom_domains: legacyTenant.custom_domains || []
+          }
+          
           memberships.push({
             tenant_id: legacyTenant.id,
             user_id: userData.id,
             role: userData.role || 'admin',
-            tenants: legacyTenant
+            tenants: processedLegacyTenant
           })
         }
       }
@@ -148,8 +155,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get primary domain from the optimized query result
-    const primaryDomain = targetTenant.custom_domains?.[0]
+    // Get primary verified domain from the optimized query result
+    // Filter for verified and primary domains in post-processing
+    const primaryDomain = targetTenant.custom_domains?.find(
+      (domain: any) => domain.verified === true && domain.is_primary === true
+    )
 
     // Generate JWT token with tenant context
     const token = await generateToken({
