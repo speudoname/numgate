@@ -62,26 +62,40 @@ export default function PostmarkConfigPage() {
     try {
       setLoading(true)
       
-      // Fetch all servers from Postmark
-      const serversResponse = await fetch('/api/super-admin/postmark/servers')
-      
-      if (serversResponse.ok) {
-        const data = await serversResponse.json()
-        setServers(data.servers || [])
-      }
-      
-      // Fetch current config
+      // First, fetch current saved config from database
       const configResponse = await fetch('/api/super-admin/postmark/config')
       
       if (configResponse.ok) {
         const data = await configResponse.json()
         if (data.currentConfig) {
           setConfig(data.currentConfig)
+          
+          // If we have saved servers, fetch their streams
+          if (data.currentConfig.transactional_server_id && data.currentConfig.transactional_server_token) {
+            await fetchStreamsForServer(
+              data.currentConfig.transactional_server_id, 
+              data.currentConfig.transactional_server_token
+            )
+          }
+          if (data.currentConfig.marketing_server_id && data.currentConfig.marketing_server_token) {
+            await fetchStreamsForServer(
+              data.currentConfig.marketing_server_id, 
+              data.currentConfig.marketing_server_token
+            )
+          }
         }
       }
+      
+      // Then fetch all available servers from Postmark
+      const serversResponse = await fetch('/api/super-admin/postmark/servers')
+      
+      if (serversResponse.ok) {
+        const data = await serversResponse.json()
+        setServers(data.servers || [])
+      }
     } catch (err) {
-      console.error('Failed to fetch servers:', err)
-      setError('Failed to load Postmark servers')
+      console.error('Failed to fetch config:', err)
+      setError('Failed to load configuration')
     } finally {
       setLoading(false)
     }
@@ -171,6 +185,8 @@ export default function PostmarkConfigPage() {
 
       if (response.ok) {
         setSuccess('Shared server configuration saved successfully!')
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000)
       } else {
         const data = await response.json()
         setError(data.error || 'Failed to save configuration')
