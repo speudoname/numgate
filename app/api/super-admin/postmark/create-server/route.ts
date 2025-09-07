@@ -85,15 +85,15 @@ export async function POST(request: NextRequest) {
         })
       })
 
-      // Update database with transactional server info
+      // Update database with transactional server info - using correct column names
       const { error: dbError } = await supabaseAdmin
         .schema('contacts')
         .from('postmark_settings')
         .upsert({
           tenant_id: tenantId,
           postmark_id: postmarkId,
-          server_token: createdServer.ApiTokens[0],
-          server_id: createdServer.ID,
+          transactional_server_token: createdServer.ApiTokens[0],
+          transactional_server_id: createdServer.ID,
           server_mode: 'dedicated',
           transactional_stream_id: 'outbound',
           updated_at: new Date().toISOString()

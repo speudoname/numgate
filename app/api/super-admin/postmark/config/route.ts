@@ -113,13 +113,13 @@ export async function POST(request: NextRequest) {
         .single()
       
       if (existing) {
-        // Update existing tenant config
+        // Update existing tenant config - using correct column names
         result = await supabaseAdmin
           .schema('contacts')
           .from('postmark_settings')
           .update({
-            server_token: body.transactional_server_token,
-            server_id: body.transactional_server_id,
+            transactional_server_token: body.transactional_server_token,
+            transactional_server_id: body.transactional_server_id,
             server_mode: 'dedicated',
             transactional_stream_id: body.transactional_stream_id,
             marketing_stream_id: body.marketing_stream_id,
@@ -132,14 +132,14 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', existing.id)
       } else {
-        // Create new tenant config
+        // Create new tenant config - using correct column names
         result = await supabaseAdmin
           .schema('contacts')
           .from('postmark_settings')
           .insert({
             tenant_id: tenantId,
-            server_token: body.transactional_server_token,
-            server_id: body.transactional_server_id,
+            transactional_server_token: body.transactional_server_token,
+            transactional_server_id: body.transactional_server_id,
             server_mode: 'dedicated',
             transactional_stream_id: body.transactional_stream_id,
             marketing_stream_id: body.marketing_stream_id,
