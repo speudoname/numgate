@@ -49,6 +49,12 @@ export default function SuperAdminLayout({
             >
               App Access
             </Link>
+            <Link
+              href="/super-admin/postmark"
+              className="text-gray-900 hover:text-red-600 px-3 py-2 text-sm font-medium"
+            >
+              Email Config
+            </Link>
           </div>
         </div>
       </nav>
