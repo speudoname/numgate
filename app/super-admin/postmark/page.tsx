@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Server, Mail, Settings, Check, AlertCircle, Eye, EyeOff, MousePointer } from 'lucide-react'
+import { Loader2, Server, Mail, Settings, Check, AlertCircle, Eye, EyeOff, MousePointer, Plus, Sparkles } from 'lucide-react'
 
 interface PostmarkServer {
   ID: number
@@ -42,6 +42,7 @@ interface Tenant {
   id: string
   name: string
   slug: string
+  postmark_id?: string | null
 }
 
 export default function PostmarkConfigPage() {
@@ -62,6 +63,8 @@ export default function PostmarkConfigPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [updatingTracking, setUpdatingTracking] = useState<number | null>(null)
+  const [creatingServers, setCreatingServers] = useState(false)
+  const [currentTenantPostmarkId, setCurrentTenantPostmarkId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTenants()
@@ -72,8 +75,13 @@ export default function PostmarkConfigPage() {
     // Refetch config when tenant selection changes
     if (selectedTenantId) {
       fetchServersAndConfig()
+      // Update current tenant's postmark_id
+      const tenant = tenants.find(t => t.id === selectedTenantId)
+      setCurrentTenantPostmarkId(tenant?.postmark_id || null)
+    } else {
+      setCurrentTenantPostmarkId(null)
     }
-  }, [selectedTenantId])
+  }, [selectedTenantId, tenants])
 
   const fetchTenants = async () => {
     try {
@@ -231,6 +239,46 @@ export default function PostmarkConfigPage() {
     }
   }
 
+  const handleCreateServers = async () => {
+    if (!currentTenantPostmarkId) {
+      setError('No Postmark ID found for this tenant')
+      return
+    }
+
+    setCreatingServers(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/super-admin/postmark/create-servers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tenantId: selectedTenantId,
+          postmarkId: currentTenantPostmarkId
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSuccess(`Successfully created servers: ${data.transactionalServer.Name} and ${data.marketingServer.Name}`)
+        // Refresh servers list
+        await fetchServersAndConfig()
+        setTimeout(() => setSuccess(''), 5000)
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to create servers')
+      }
+    } catch (err: any) {
+      console.error('Create servers error:', err)
+      setError(err.message || 'Failed to create servers')
+    } finally {
+      setCreatingServers(false)
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
@@ -329,9 +377,41 @@ export default function PostmarkConfigPage() {
               </SelectContent>
             </Select>
             {selectedTenantId !== 'default' && (
-              <p className="text-sm text-blue-700 mt-2">
-                ⚠️ This will override the default configuration for {tenants.find(t => t.id === selectedTenantId)?.name}
-              </p>
+              <>
+                <p className="text-sm text-blue-700 mt-2">
+                  ⚠️ This will override the default configuration for {tenants.find(t => t.id === selectedTenantId)?.name}
+                </p>
+                {currentTenantPostmarkId && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm font-medium">Postmark ID: {currentTenantPostmarkId}</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleCreateServers()}
+                        disabled={creatingServers}
+                      >
+                        {creatingServers ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Servers for Tenant
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-yellow-700 mt-2">
+                      Suggested server names: {currentTenantPostmarkId}-trans, {currentTenantPostmarkId}-market
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -366,6 +446,32 @@ export default function PostmarkConfigPage() {
                       <SelectValue placeholder="Select server..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Show suggested servers first if they exist */}
+                      {currentTenantPostmarkId && (() => {
+                        const suggestedServers = servers.filter(s => 
+                          s.Name.toLowerCase().includes(currentTenantPostmarkId.toLowerCase() + '-trans')
+                        )
+                        if (suggestedServers.length > 0) {
+                          return (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                                Suggested for {currentTenantPostmarkId}
+                              </div>
+                              {suggestedServers.map(server => (
+                                <SelectItem key={server.ID} value={server.ID.toString()}>
+                                  ⭐ {server.Name} {server.TrackOpens === false && '(No tracking ✓)'}
+                                </SelectItem>
+                              ))}
+                              <div className="my-1 border-t" />
+                            </>
+                          )
+                        }
+                        return null
+                      })()}
+                      {/* Show all other servers */}
+                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
+                        All Servers
+                      </div>
                       {servers.map(server => (
                         <SelectItem key={server.ID} value={server.ID.toString()}>
                           {server.Name} {server.TrackOpens === false && '(No tracking ✓)'}
@@ -430,7 +536,7 @@ export default function PostmarkConfigPage() {
                             <Button
                               size="sm"
                               variant={server.TrackOpens ? "default" : "outline"}
-                              onClick={() => toggleTracking(server.ID, config.transactional_server_token!, 'opens', server.TrackOpens)}
+                              onClick={() => toggleTracking(server.ID, config.transactional_server_token!, 'opens', !!server.TrackOpens)}
                               disabled={updatingTracking === server.ID}
                             >
                               {updatingTracking === server.ID ? (
@@ -495,6 +601,32 @@ export default function PostmarkConfigPage() {
                       <SelectValue placeholder="Select server..." />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Show suggested servers first if they exist */}
+                      {currentTenantPostmarkId && (() => {
+                        const suggestedServers = servers.filter(s => 
+                          s.Name.toLowerCase().includes(currentTenantPostmarkId.toLowerCase() + '-market')
+                        )
+                        if (suggestedServers.length > 0) {
+                          return (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-medium text-yellow-600">
+                                Suggested for {currentTenantPostmarkId}
+                              </div>
+                              {suggestedServers.map(server => (
+                                <SelectItem key={server.ID} value={server.ID.toString()}>
+                                  ⭐ {server.Name} {server.TrackOpens && '(Tracking enabled ✓)'}
+                                </SelectItem>
+                              ))}
+                              <div className="my-1 border-t" />
+                            </>
+                          )
+                        }
+                        return null
+                      })()}
+                      {/* Show all other servers */}
+                      <div className="px-2 py-1.5 text-xs font-medium text-gray-500">
+                        All Servers
+                      </div>
                       {servers.map(server => (
                         <SelectItem key={server.ID} value={server.ID.toString()}>
                           {server.Name} {server.TrackOpens && '(Tracking enabled ✓)'}
@@ -559,7 +691,7 @@ export default function PostmarkConfigPage() {
                             <Button
                               size="sm"
                               variant={server.TrackOpens ? "default" : "outline"}
-                              onClick={() => toggleTracking(server.ID, config.marketing_server_token!, 'opens', server.TrackOpens)}
+                              onClick={() => toggleTracking(server.ID, config.marketing_server_token!, 'opens', !!server.TrackOpens)}
                               disabled={updatingTracking === server.ID}
                             >
                               {updatingTracking === server.ID ? (
