@@ -155,7 +155,7 @@ export function isPlatformDomain(hostname: string | null, pathname?: string): bo
     pathname === '/register'
   )
   
-  return isKomunateDomain && isAuthRoute
+  return isKomunateDomain && !!isAuthRoute
 }
 
 /**
