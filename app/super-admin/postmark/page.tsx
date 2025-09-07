@@ -275,6 +275,32 @@ export default function PostmarkConfigPage() {
 
     // Fetch streams for this server
     await fetchStreamsForServer(server.ID, token)
+    
+    // Auto-store token in ContactGate's postmark_settings if tenant is selected
+    if (selectedTenantId !== 'default' && token) {
+      try {
+        const response = await fetch('/api/super-admin/postmark/store-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            tenantId: selectedTenantId,
+            serverType: type,
+            serverName: server.Name,
+            serverToken: token
+          })
+        })
+        
+        if (response.ok) {
+          console.log(`Token stored for ${type} server: ${server.Name}`)
+        } else {
+          console.error(`Failed to store token for ${server.Name}`)
+        }
+      } catch (err) {
+        console.error('Error storing token:', err)
+      }
+    }
   }
 
   const toggleTracking = async (serverId: number, serverToken: string, trackingType: 'opens' | 'clicks', currentValue: boolean) => {

@@ -85,14 +85,14 @@ export async function POST(request: NextRequest) {
         })
       })
 
-      // Update database with transactional server info - using actual database column names
+      // Update database with transactional server info - using correct column names
       const { error: dbError } = await supabaseAdmin
         .schema('contacts')
         .from('postmark_settings')
         .upsert({
           tenant_id: tenantId,
           postmark_id: postmarkId,
-          transactional_server_token: createdServer.ApiTokens[0],
+          dedicated_transactional_token: createdServer.ApiTokens[0], // Use correct column name
           transactional_server_id: createdServer.ID,
           server_mode: 'dedicated',
           transactional_stream_id: 'outbound',
@@ -168,14 +168,14 @@ export async function POST(request: NextRequest) {
         })
       })
 
-      // Update database with marketing server info
+      // Update database with marketing server info - using correct column names
       const { error: dbError } = await supabaseAdmin
         .schema('contacts')
         .from('postmark_settings')
         .upsert({
           tenant_id: tenantId,
           postmark_id: postmarkId,
-          marketing_server_token: createdServer.ApiTokens[0],
+          dedicated_marketing_token: createdServer.ApiTokens[0], // Use correct column name
           marketing_server_id: createdServer.ID,
           marketing_stream_id: 'broadcasts',
           server_mode: 'dedicated',

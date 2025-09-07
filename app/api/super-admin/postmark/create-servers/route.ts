@@ -139,23 +139,23 @@ export async function POST(request: NextRequest) {
     // By default, servers come with 'outbound' (transactional) and 'broadcasts' (broadcast) streams
     // We don't need to create them, but we could create custom ones if needed
 
-    // Save the server configuration to database - using actual database column names
+    // Save the server configuration to database - using correct column names
     const { error: dbError } = await supabaseAdmin
       .schema('contacts')
       .from('postmark_settings')
       .upsert({
         tenant_id: tenantId,
         postmark_id: postmarkId,
-        transactional_server_token: transServer.ApiTokens[0],
+        dedicated_transactional_token: transServer.ApiTokens[0], // Use correct column name
         transactional_server_id: transServer.ID,
         server_mode: 'dedicated',
         transactional_stream_id: 'outbound',
         marketing_stream_id: 'broadcasts',
-        marketing_server_token: marketServer.ApiTokens[0],
+        dedicated_marketing_token: marketServer.ApiTokens[0], // Use correct column name
         marketing_server_id: marketServer.ID,
-        default_from_email: `noreply@${postmarkId.toLowerCase()}.komunate.com`,
-        default_from_name: 'Komunate',
-        default_reply_to: `support@${postmarkId.toLowerCase()}.komunate.com`,
+        from_email: `noreply@${postmarkId.toLowerCase()}.komunate.com`, // Use correct column name
+        from_name: 'Komunate', // Use correct column name
+        reply_to_email: `support@${postmarkId.toLowerCase()}.komunate.com`, // Use correct column name
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'tenant_id'
