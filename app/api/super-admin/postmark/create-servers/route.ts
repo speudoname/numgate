@@ -146,8 +146,8 @@ export async function POST(request: NextRequest) {
       .upsert({
         tenant_id: tenantId,
         postmark_id: postmarkId,
-        server_token: transServer.ApiTokens[0],
-        server_id: transServer.ID,
+        transactional_server_token: transServer.ApiTokens[0],
+        transactional_server_id: transServer.ID,
         server_mode: 'dedicated',
         transactional_stream_id: 'outbound',
         marketing_stream_id: 'broadcasts',

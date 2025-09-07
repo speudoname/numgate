@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
         .upsert({
           tenant_id: tenantId,
           postmark_id: postmarkId,
-          server_token: createdServer.ApiTokens[0],
-          server_id: createdServer.ID,
+          transactional_server_token: createdServer.ApiTokens[0],
+          transactional_server_id: createdServer.ID,
           server_mode: 'dedicated',
           transactional_stream_id: 'outbound',
           updated_at: new Date().toISOString()
