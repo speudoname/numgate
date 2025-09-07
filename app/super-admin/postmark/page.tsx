@@ -173,8 +173,12 @@ export default function PostmarkConfigPage() {
 
   const handleServerChange = async (type: 'transactional' | 'marketing', serverId: string) => {
     // Check if this is a create action
-    if (serverId === '__create_trans__' || serverId === '__create_market__') {
-      handleCreateServers()
+    if (serverId === '__create_trans__') {
+      handleCreateSingleServer('transactional')
+      return
+    }
+    if (serverId === '__create_market__') {
+      handleCreateSingleServer('marketing')
       return
     }
     
@@ -245,6 +249,48 @@ export default function PostmarkConfigPage() {
       setError(`Failed to update ${trackingType} tracking`)
     } finally {
       setUpdatingTracking(null)
+    }
+  }
+
+  const handleCreateSingleServer = async (serverType: 'transactional' | 'marketing') => {
+    if (!currentTenantPostmarkId) {
+      setError('No Postmark ID found for this tenant')
+      return
+    }
+
+    setCreatingServers(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch('/api/super-admin/postmark/create-server', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tenantId: selectedTenantId,
+          postmarkId: currentTenantPostmarkId,
+          serverType: serverType
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const serverName = serverType === 'transactional' ? data.transactionalServer?.Name : data.marketingServer?.Name
+        setSuccess(`Successfully created server: ${serverName}`)
+        // Refresh servers list
+        await fetchServersAndConfig()
+        setTimeout(() => setSuccess(''), 5000)
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to create server')
+      }
+    } catch (err: any) {
+      console.error('Create server error:', err)
+      setError(err.message || 'Failed to create server')
+    } finally {
+      setCreatingServers(false)
     }
   }
 
