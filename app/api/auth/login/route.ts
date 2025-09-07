@@ -25,11 +25,12 @@ export async function POST(request: NextRequest) {
     // OPTIMIZED: Single query to get user with tenant memberships and domains
     // Uses left join for custom_domains to include users without custom domains
     // This reduces 3 separate queries to 1 optimized query
+    // IMPORTANT: Specify the exact foreign key relationship to avoid ambiguity
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select(`
         *,
-        tenant_users!inner (
+        tenant_users!tenant_users_user_id_fkey!inner (
           *,
           tenants!inner (
             id,
