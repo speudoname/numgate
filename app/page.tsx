@@ -1,92 +1,53 @@
-import { headers } from 'next/headers'
-import { getTenantByDomain, isPlatformDomain } from '@/lib/tenant/lookup'
-import { TenantPagesService, BlobFolder } from '@/lib/blob/tenant-pages'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
+import Link from 'next/link'
 
-async function getKomunateTenantId(): Promise<string | null> {
-  const { data: tenant } = await supabaseAdmin
-    .from('tenants')
-    .select('id')
-    .eq('slug', 'komunate')
-    .single()
-  
-  return tenant?.id || null
-}
-
-export default async function HomePage() {
-  const headersList = await headers()
-  const hostname = headersList.get('host')
-  const isPlatform = isPlatformDomain(hostname)
-  
-  // For platform mode, serve komunate's homepage
-  if (isPlatform) {
-    const komunateTenant = await getKomunateTenantId()
-    if (komunateTenant) {
-      const pageResponse = await TenantPagesService.getPage(
-        komunateTenant,
-        'index.html',
-        BlobFolder.ROOT
-      )
-      
-      if (pageResponse) {
-        const content = await pageResponse.text()
-        return <div dangerouslySetInnerHTML={{ __html: content }} />
-      }
-    }
-    
-    // Fallback for platform without content
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">Welcome to Komunate</h1>
-          <p className="text-lg text-gray-600 mb-8">Multi-tenant platform gateway</p>
-          <div className="space-x-4">
-            <a href="/login" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              Login
-            </a>
-            <a href="/register" className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
-              Register
-            </a>
+export default function HomePage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600">
+      <nav className="bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <h1 className="text-2xl font-bold text-white">NumGate</h1>
+            <div className="flex items-center gap-4">
+              <SignedOut>
+                <Link href="/sign-in" className="text-white hover:text-white/80">
+                  Sign In
+                </Link>
+                <Link href="/sign-up" className="bg-white text-purple-600 px-4 py-2 rounded-md hover:bg-white/90">
+                  Sign Up
+                </Link>
+              </SignedOut>
+              <SignedIn>
+                <Link href="/dashboard" className="text-white hover:text-white/80">
+                  Dashboard
+                </Link>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
+            </div>
           </div>
         </div>
-      </div>
-    )
-  }
-  
-  // For tenant mode, get tenant and serve their homepage
-  const tenant = await getTenantByDomain(hostname)
-  if (!tenant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Site Not Found</h1>
-          <p className="text-gray-600">This domain is not configured.</p>
+          <h2 className="text-5xl font-bold text-white mb-6">
+            Welcome to NumGate
+          </h2>
+          <p className="text-xl text-white/80 mb-8">
+            Your gateway to a powerful multi-tenant platform
+          </p>
+          <SignedOut>
+            <Link href="/sign-up" className="inline-block bg-white text-purple-600 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-white/90 transition">
+              Get Started
+            </Link>
+          </SignedOut>
+          <SignedIn>
+            <Link href="/dashboard" className="inline-block bg-white text-purple-600 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-white/90 transition">
+              Go to Dashboard
+            </Link>
+          </SignedIn>
         </div>
-      </div>
-    )
-  }
-  
-  const pageResponse = await TenantPagesService.getPage(
-    tenant.id,
-    'index.html',
-    BlobFolder.ROOT
-  )
-  
-  if (pageResponse) {
-    const content = await pageResponse.text()
-    return <div dangerouslySetInnerHTML={{ __html: content }} />
-  }
-  
-  // Fallback for tenant without content
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Welcome to {tenant.name}</h1>
-        <p className="text-gray-600 mb-8">This site is being set up.</p>
-        <a href="/admin" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          Go to Admin Panel
-        </a>
-      </div>
+      </main>
     </div>
   )
 }

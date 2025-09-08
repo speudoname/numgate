@@ -1,63 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
-import { withUserAuth, AuthContext } from '@/lib/middleware/auth'
-import { withErrorHandling } from '@/lib/errors/error-handler'
-import { ApiErrors } from '@/lib/errors/api-error'
+import { auth, currentUser } from '@clerk/nextjs/server'
 
-export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, auth: AuthContext) => {
-  const { tenantId, userId } = auth
-
-  // Continue using admin client with explicit tenant filtering
-  // RLS with custom JWT requires more complex Supabase setup
-  const supabase = supabaseAdmin
-    
-  const { data: tenant, error: tenantError } = await supabase
-    .from('tenants')
-    .select('*')
-    .eq('id', tenantId)
-    .single()
-
-  if (tenantError || !tenant) {
-    throw ApiErrors.tenantNotFound(tenantId)
+export async function GET(request: NextRequest) {
+  const { userId, orgId, orgSlug } = await auth()
+  const user = await currentUser()
+  
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get user information
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', userId)
-    .single()
-
-  if (userError || !user) {
-    throw ApiErrors.userNotFound(userId)
-  }
-
-  // Get enabled apps
-  const { data: apps, error: appsError } = await supabase
-    .from('app_access')
-    .select('*')
-    .eq('tenant_id', tenantId)
-
-  if (appsError) {
-    throw ApiErrors.internalError('Failed to fetch apps')
-  }
-
-  return NextResponse.json({
+  // Mock tenant data for now - will connect to Neon later
+  const mockTenantData = {
     tenant: {
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      email: tenant.email,
-      subscription_plan: tenant.subscription_plan,
-      custom_domains: tenant.custom_domains
+      id: orgId || userId,
+      name: orgSlug || user?.firstName || 'Personal Workspace',
+      slug: orgSlug || 'personal',
+      email: user?.emailAddresses[0]?.emailAddress || '',
+      subscription_plan: 'free',
+      custom_domains: []
     },
     user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      is_super_admin: user.is_super_admin || false
+      id: userId,
+      email: user?.emailAddresses[0]?.emailAddress || '',
+      name: user?.firstName || 'User',
+      role: 'admin',
+      is_super_admin: false
     },
-    apps: apps || []
-  })
-}))
+    apps: [
+      { id: '1', app_name: 'page_builder', enabled: true },
+      { id: '2', app_name: 'contacts', enabled: true },
+      { id: '3', app_name: 'email', enabled: false },
+      { id: '4', app_name: 'webinar', enabled: false },
+      { id: '5', app_name: 'lms', enabled: false }
+    ]
+  }
+
+  return NextResponse.json(mockTenantData)
+}
