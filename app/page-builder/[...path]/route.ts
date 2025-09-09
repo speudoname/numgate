@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createProxyHeaders, processResponseHeaders } from '@/lib/proxy/proxy-utils'
 
 // This file handles /page-builder/* routes directly without relying on rewrites
 // It forwards to the proxy API internally
@@ -69,44 +70,8 @@ async function handleProxyRequest(
       targetEndpoint += url.search
     }
     
-    // Proxy request to page builder path
-
-    // Prepare headers for the proxy request
-    const proxyHeaders = new Headers()
-    
-    // Copy important headers from the original request
-    const headersToForward = [
-      'authorization',
-      'content-type',
-      'user-agent',
-      'accept',
-      'accept-language',
-      'accept-encoding',
-      'x-tenant-id',
-      'x-user-id',
-      'x-user-email',
-      'x-user-role',
-      'x-auth-token'
-    ]
-
-    headersToForward.forEach(headerName => {
-      const value = request.headers.get(headerName)
-      if (value) {
-        proxyHeaders.set(headerName, value)
-      }
-    })
-
-    // Forward cookies
-    const cookieHeader = request.headers.get('cookie')
-    if (cookieHeader) {
-      proxyHeaders.set('cookie', cookieHeader)
-    }
-
-    // Add custom headers to identify this as a proxied request
-    proxyHeaders.set('x-proxied-from', 'numgate')
-    proxyHeaders.set('x-original-host', request.headers.get('host') || '')
-    proxyHeaders.set('x-forwarded-host', request.headers.get('host') || '')
-    proxyHeaders.set('x-forwarded-proto', request.headers.get('x-forwarded-proto') || 'https')
+    // Prepare headers for the proxy request using shared utility
+    const proxyHeaders = createProxyHeaders(request)
 
     // Prepare the proxy request options
     const proxyOptions: RequestInit = {
@@ -125,24 +90,8 @@ async function handleProxyRequest(
     // Make the proxy request
     const response = await fetch(targetEndpoint, proxyOptions)
 
-    // Create response headers
-    const responseHeaders = new Headers()
-
-    // Copy response headers, but filter out some that might cause issues
-    const headersToSkip = new Set([
-      'content-encoding',
-      'content-length',
-      'transfer-encoding',
-      'connection',
-      'upgrade',
-      'x-powered-by'
-    ])
-
-    response.headers.forEach((value, key) => {
-      if (!headersToSkip.has(key.toLowerCase())) {
-        responseHeaders.set(key, value)
-      }
-    })
+    // Process response headers using shared utility
+    const responseHeaders = processResponseHeaders(response.headers)
 
     // Handle different content types
     const contentType = response.headers.get('content-type') || ''
