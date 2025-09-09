@@ -4,12 +4,20 @@ import { verifyPassword } from '@/lib/auth/password'
 import { generateToken } from '@/lib/auth/jwt'
 import { isPlatformDomain } from '@/lib/tenant/lookup'
 import { loginSchema } from '@/lib/validations/auth'
+import { loginRateLimiter, getClientIp, rateLimitResponse } from '@/lib/auth/rate-limiter'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const host = request.headers.get('host')
     const tenantIdFromHeader = request.headers.get('x-tenant-id')
+    
+    // Rate limiting by IP
+    const clientIp = getClientIp(request)
+    if (loginRateLimiter.isRateLimited(clientIp)) {
+      const resetTime = loginRateLimiter.getResetTime(clientIp)
+      return rateLimitResponse(resetTime)
+    }
 
     // Validate input with zod
     const validation = loginSchema.safeParse(body)
@@ -206,6 +214,9 @@ export async function POST(request: NextRequest) {
       (domain: any) => domain.verified === true && domain.is_primary === true
     )
 
+    // Reset rate limit on successful login
+    loginRateLimiter.reset(clientIp)
+    
     // Generate JWT token with tenant context
     const token = await generateToken({
       tenant_id: targetTenant.id,
