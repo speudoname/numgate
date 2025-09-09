@@ -42,7 +42,7 @@ export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, a
     return SharedApiResponse.internalError('Failed to fetch apps')
   }
 
-  return SharedApiResponse.success({
+  return NextResponse.json({
     tenant: {
       id: tenant.id,
       name: tenant.name,
