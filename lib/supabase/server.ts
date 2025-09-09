@@ -1,21 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
+import { SupabaseClientFactory, initializeSupabase } from './shared-client-factory'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
-}
-if (!process.env.SUPABASE_SERVICE_KEY) {
-  throw new Error('Missing env.SUPABASE_SERVICE_KEY')
-}
+// Initialize the shared Supabase client factory
+initializeSupabase()
 
-// Server-side Supabase client with service role key
-// This bypasses RLS and should only be used in server-side code
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+// Export pre-configured clients for backward compatibility
+export const supabaseAdmin = SupabaseClientFactory.createAdminClient()
+
+// Export the factory for advanced use cases
+export { SupabaseClientFactory }
