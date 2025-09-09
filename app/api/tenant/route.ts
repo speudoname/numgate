@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withUserAuth, AuthContext } from '@/lib/middleware/auth'
 import { withErrorHandling } from '@/lib/errors/error-handler'
-import { ApiErrors } from '@/lib/errors/api-error'
+import { SharedApiResponse } from '@/lib/errors/shared-error-handler'
 
 export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, auth: AuthContext) => {
   const { tenantId, userId } = auth
@@ -18,7 +18,7 @@ export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, a
     .single()
 
   if (tenantError || !tenant) {
-    throw ApiErrors.tenantNotFound(tenantId)
+    return SharedApiResponse.notFound('Tenant not found')
   }
 
   // Get user information
@@ -29,7 +29,7 @@ export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, a
     .single()
 
   if (userError || !user) {
-    throw ApiErrors.userNotFound(userId)
+    return SharedApiResponse.notFound('User not found')
   }
 
   // Get enabled apps
@@ -39,10 +39,10 @@ export const GET = withUserAuth(withErrorHandling(async (request: NextRequest, a
     .eq('tenant_id', tenantId)
 
   if (appsError) {
-    throw ApiErrors.internalError('Failed to fetch apps')
+    return SharedApiResponse.internalError('Failed to fetch apps')
   }
 
-  return NextResponse.json({
+  return SharedApiResponse.success({
     tenant: {
       id: tenant.id,
       name: tenant.name,
